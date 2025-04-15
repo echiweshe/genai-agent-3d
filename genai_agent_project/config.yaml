@@ -1,0 +1,25 @@
+# GenAI Agent Configuration
+version: 0.1.0
+
+# Services configuration
+services:
+  redis:
+    host: localhost
+    port: 6379
+    
+  llm:
+    type: local  # local, api
+    provider: ollama  # ollama, openai, anthropic
+    model: llama3  # Model identifier
+    
+  blender:
+    path: C:\Program Files\Blender Foundation\Blender 4.2\blender.exe  # Path to Blender executable
+    addons_path: addons/    # Path to custom addons
+    
+# Tool configuration
+tools:
+  enabled:
+    - blender_script
+    - scene_generator
+    - scenex_tool
+    - svg_processor
