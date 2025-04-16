@@ -331,8 +331,22 @@ class LLMService:
         if context is None:
             return prompt
         
-        if self.provider == 'ollama' and 'deepseek-coder' in self.model:
-            # Special formatting for deepseek-coder model
+        if self.provider == 'ollama' and 'deepseek-coder' in self.model and "JSON" in prompt:
+            # Special formatting for JSON generation with deepseek-coder model
+            base_prompt = """You are a JSON generation expert. Your task is to generate precise, valid JSON based on the given specifications.
+
+Rules for JSON generation:
+- Produce ONLY the JSON output, with no additional text, comments, or backticks
+- Ensure all JSON is valid and can be parsed by standard parsers
+- Do not add explanations or descriptions outside the JSON
+- Follow the exact schema requested
+- Use double quotes for keys and string values
+- Do not use comments in the JSON output
+
+"""
+            return base_prompt + prompt
+        elif self.provider == 'ollama' and 'deepseek-coder' in self.model:
+            # Special formatting for deepseek-coder model (for non-JSON prompts)
             base_prompt = """You are a 3D modeling assistant specialized in Blender Python scripting.
             
 Focus on generating precise, efficient, and well-structured Python code for Blender.

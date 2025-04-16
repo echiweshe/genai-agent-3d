@@ -197,6 +197,12 @@ class SceneGeneratorTool(Tool):
         Returns:
             Extracted JSON data or None if extraction failed
         """
+        # Log the response for debugging
+        log_response = response
+        if len(log_response) > 500:
+            log_response = log_response[:500] + "..."
+        logger.debug(f"Attempting to extract JSON from: {log_response}")
+        
         # Method 1: Direct JSON parsing
         try:
             scene_data = json.loads(response)
@@ -210,13 +216,51 @@ class SceneGeneratorTool(Tool):
             json_match = re.search(r'```(?:json)?\s*([\s\S]*?)\s*```', response, re.DOTALL)
             if json_match:
                 json_str = json_match.group(1)
+                # Clean up common issues before parsing
+                json_str = re.sub(r'//.*?(?:\n|$)', '', json_str, flags=re.MULTILINE)  # Remove // comments
+                json_str = re.sub(r'/\*.*?\*/', '', json_str, flags=re.DOTALL)  # Remove /* */ comments
                 scene_data = json.loads(json_str)
                 logger.info("Successfully parsed JSON from code block")
                 return scene_data
         except (json.JSONDecodeError, AttributeError):
             logger.debug("JSON code block extraction failed")
         
-        # Method 3: Find JSON-like structure with regex
+        # Method 3: Find JSON-like structure with regex - look for largest valid JSON object
+        try:
+            # Find all potential JSON objects in the response
+            potential_jsons = []
+            bracket_pattern = re.compile(r'\{([^{}]|\{[^{}]*\})*\}')
+            for match in bracket_pattern.finditer(response):
+                potential_json = match.group(0)
+                try:
+                    # Remove comments and other invalid JSON syntax
+                    cleaned = re.sub(r'//.*?(?:\n|$)', '', potential_json, flags=re.MULTILINE)  # Remove // comments
+                    cleaned = re.sub(r'/\*.*?\*/', '', cleaned, flags=re.DOTALL)  # Remove /* */ comments
+                    cleaned = re.sub(r',\s*\}', '}', cleaned)  # Remove trailing commas
+                    # Replace single quotes with double quotes for keys and string values
+                    cleaned = re.sub(r"'([^']*)'\s*:", r'"\1":', cleaned)  # Replace 'key': with "key":
+                    cleaned = re.sub(r":\s*'([^']*)'([,\}])", r':"\1"\2', cleaned)  # Replace :'value' with :"value"
+                    
+                    # Attempt to parse
+                    parsed = json.loads(cleaned)
+                    # Store if valid
+                    potential_jsons.append((cleaned, len(cleaned)))
+                except json.JSONDecodeError:
+                    continue
+            
+            # If we found any valid JSON objects, return the largest one
+            if potential_jsons:
+                # Sort by size (largest first)
+                potential_jsons.sort(key=lambda x: x[1], reverse=True)
+                largest_json_str, _ = potential_jsons[0]
+                scene_data = json.loads(largest_json_str)
+                logger.info("Successfully parsed JSON using advanced regex extraction")
+                return scene_data
+        except Exception as e:
+            logger.debug(f"Advanced JSON structure extraction failed: {str(e)}")
+            logger.debug(traceback.format_exc())
+        
+        # Method 4: Find JSON-like structure with simple brace matching
         try:
             # Find the first { that has a matching }
             start_idx = response.find('{')
@@ -233,24 +277,21 @@ class SceneGeneratorTool(Tool):
                             json_str = response[start_idx:i+1]
                             
                             # Clean up common issues
-                            json_str = re.sub(r'//.*?$', '', json_str, flags=re.MULTILINE)  # Remove // comments
+                            json_str = re.sub(r'//.*?(?:\n|$)', '', json_str, flags=re.MULTILINE)  # Remove // comments
                             json_str = re.sub(r'/\*.*?\*/', '', json_str, flags=re.DOTALL)  # Remove /* */ comments
+                            json_str = re.sub(r',\s*\}', '}', json_str)  # Remove trailing commas
+                            # Replace single quotes with double quotes for keys and string values
+                            json_str = re.sub(r"'([^']*)'\s*:", r'"\1":', json_str)  # Replace 'key': with "key":
+                            json_str = re.sub(r":\s*'([^']*)'([,\}])", r':"\1"\2', json_str)  # Replace :'value' with :"value"
                             
                             scene_data = json.loads(json_str)
                             logger.info("Successfully parsed JSON using brace matching")
                             return scene_data
-            
-            # Another approach: use regular expression
-            json_match = re.search(r'(\{[\s\S]*\})', response, re.DOTALL)
-            if json_match:
-                json_str = json_match.group(1)
-                scene_data = json.loads(json_str)
-                logger.info("Successfully parsed JSON using regex extraction")
-                return scene_data
         except (json.JSONDecodeError, AttributeError, IndexError):
-            logger.debug("JSON structure extraction failed")
+            logger.debug("Simple brace matching extraction failed")
         
         # If all methods fail, return None
+        logger.warning("All JSON extraction methods failed")
         return None
     
     def _create_scene_generation_prompt(self, description: str, style: str, name: str) -> str:
@@ -265,29 +306,20 @@ class SceneGeneratorTool(Tool):
         Returns:
             LLM prompt
         """
-        return f"""You are a 3D scene generation specialist. Generate a 3D scene based on the following description and style.
+        return f"""Your task is to output ONLY a valid JSON object to define a 3D scene. No explanations or comments, just the JSON.
 
 Description: {description}
 Style: {style}
 Name: {name}
 
-Create a JSON structure that defines the scene with objects. Each object must have:
-- id (a unique identifier)
-- type (cube, sphere, plane, camera, light, etc.)
-- name (descriptive name)
-- position [x, y, z] coordinates
-- rotation [x, y, z] in radians
-- scale [x, y, z] scale factors
-- properties (materials, etc.)
-
-Your response must be a valid JSON object with this exact structure:
+The JSON object must have this structure:
 {{
   "name": "{name}",
-  "description": "Detailed scene description",
+  "description": "{description}",
   "objects": [
     {{
-      "id": "unique-id-1",
-      "type": "cube",
+      "id": "uuid-here",
+      "type": "cube",  // Use types like: cube, sphere, plane, camera, light
       "name": "Object Name",
       "position": [0, 0, 0],
       "rotation": [0, 0, 0],
@@ -295,14 +327,19 @@ Your response must be a valid JSON object with this exact structure:
       "properties": {{
         "material": {{
           "name": "Material Name",
-          "color": [r, g, b, a]
+          "color": [1, 0, 0, 1]  // RGBA values between 0 and 1
         }}
       }}
     }}
   ]
 }}
 
-Include appropriate camera, lighting, and at least 3-4 objects in the scene. Your response must be valid JSON that can be parsed directly.
+Include:
+- A camera (position at distance to view the scene)
+- At least one light source
+- 2-3 objects related to the scene description
+
+IMPORTANT: Your response must be ONLY valid JSON with NO comments or explanations. Don't include backticks (```) or 'json' text.
 """
     
     def _get_fallback_scene_data(self, description: str, style: str, name: str) -> Dict[str, Any]:

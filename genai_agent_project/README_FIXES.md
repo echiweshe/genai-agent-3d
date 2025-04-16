@@ -5,10 +5,12 @@ This document describes the fixes and improvements made to the GenAI Agent 3D pr
 ## Issues Fixed
 
 1. **Missing asyncio Import**: Added the missing `asyncio` import in the LLM service.
-2. **JSON Parsing Issues**: Improved the JSON parsing in the Scene Generator tool with robust extraction methods.
+2. **JSON Parsing Issues**: Implemented advanced JSON parsing in the Scene Generator tool with multiple extraction methods.
 3. **Duplicate Files Removal**: Removed unnecessary duplicate files.
 4. **Error Handling**: Enhanced error handling and logging throughout the codebase.
 5. **Redis Connection Issues**: Fixed Redis connection handling to prevent errors.
+6. **LLM Prompting**: Optimized prompts to better guide the LLM to generate valid JSON.
+7. **Fallback Mechanism**: Improved the fallback scene generation to ensure the system works even when JSON parsing fails.
 
 ## How to Run the Fixed Version
 
@@ -43,8 +45,18 @@ If you prefer to run the steps manually:
    ```bash
    python test_integration.py
    ```
+   
+4. **Test the improved JSON generation and extraction**:
+   ```bash
+   python examples/test_json_generation.py
+   ```
 
-4. **Run the interactive shell**:
+5. **Run the improved scene generation example**:
+   ```bash
+   python examples/improved_scene_test.py
+   ```
+
+6. **Run the interactive shell**:
    ```bash
    python run.py shell
    ```
