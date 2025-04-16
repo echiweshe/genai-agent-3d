@@ -11,7 +11,70 @@ import platform
 import requests
 from typing import List, Dict, Any, Optional
 
+import psutil  # <-- Add this at the top if not already imported
+
 logger = logging.getLogger(__name__)
+
+@staticmethod
+def start_ollama() -> bool:
+    """
+    Start Ollama server
+
+    Returns:
+        True if started successfully, False otherwise
+    """
+    logger.info("Starting Ollama server...")
+
+    if OllamaHelper.is_ollama_running():
+        logger.info("Ollama is already running")
+        return True
+
+    # 🔍 Kill any hanging Ollama processes (defensive cleanup)
+    for proc in psutil.process_iter(attrs=['pid', 'name', 'cmdline']):
+        try:
+            name = proc.info['name']
+            cmdline = ' '.join(proc.info['cmdline']) if proc.info['cmdline'] else ''
+            if 'ollama' in name.lower() or 'ollama' in cmdline.lower():
+                logger.warning(f"Killing hanging Ollama process: PID={proc.info['pid']} Name={name}")
+                proc.kill()
+        except (psutil.NoSuchProcess, psutil.AccessDenied):
+            continue
+
+    # Get OS-specific command
+    system = platform.system()
+
+    try:
+        if system == 'Windows':
+            subprocess.Popen(
+                ['start', '/b', 'ollama', 'serve'],
+                shell=True,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                encoding='utf-8',
+                errors='replace'
+            )
+        elif system in ['Darwin', 'Linux']:
+            subprocess.Popen(
+                ['nohup', 'ollama', 'serve', '&'],
+                stdout=subprocess.PIPE,
+                stderr=subprocess.PIPE,
+                preexec_fn=os.setpgrp
+            )
+
+        # Wait for server to start
+        for i in range(10):
+            time.sleep(2)
+            if OllamaHelper.is_ollama_running():
+                logger.info("Ollama server started successfully")
+                return True
+            logger.info(f"Waiting for Ollama server to start (attempt {i+1}/10)...")
+
+        logger.error("Failed to start Ollama server after multiple attempts")
+        return False
+    except Exception as e:
+        logger.error(f"Error starting Ollama server: {str(e)}")
+        return False
+
 
 class OllamaHelper:
     """

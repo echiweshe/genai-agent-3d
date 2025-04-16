@@ -16,7 +16,8 @@ redis:
 llm:
   type: local
   provider: ollama
-  model: llama3.2:latest  # Using the available model from your system
+  model: deepseek-coder:latest  # ✅ use lightweight model always
+  # model: llama3:latest  # Using the lighter llama3 model
   
 # Blender configuration
 blender:

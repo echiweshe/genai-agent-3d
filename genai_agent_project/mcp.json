@@ -1,0 +1,25 @@
+{
+    "mcpServers": {
+      "filesystem": {
+        "command": "npx",
+        "args": [
+          "-y",
+          "@modelcontextprotocol/server-filesystem",
+          "C:\\ZB_Share\\Labs\\src\\CluadeMCP"
+        ]
+      },
+      "github": {
+        "command": "npx",
+        "args": ["-y", "@modelcontextprotocol/server-github"],
+        "env": {
+          "GITHUB_PERSONAL_ACCESS_TOKEN": "env:GITHUB_TOKEN"
+        },
+        "repository": {
+          "owner": "echiweshe",
+          "repo": "genai-agent-3d",
+          "branch": "main"
+        }
+      }
+    }
+  }
+  

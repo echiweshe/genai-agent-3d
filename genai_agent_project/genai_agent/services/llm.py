@@ -9,6 +9,8 @@ import os
 import sys
 import requests
 import subprocess
+import asyncio
+import traceback
 from typing import Dict, Any, List, Optional, Union
 
 logger = logging.getLogger(__name__)
@@ -27,17 +29,25 @@ class LLMService:
         """
         self.type = config.get('type', 'local')
         self.provider = config.get('provider', 'ollama')
-        self.model = config.get('model', 'llama3')
+        # self.model = config.get('model', 'llama3:latest')
+        self.model = config.get('model', 'deepseek-coder:latest')
         self.api_key = config.get('api_key')
         self.api_url = self._get_api_url()
         
         # Fallback models to try if the primary model is not available
+        # Prioritize lighter models
         self.fallback_models = [
-            "llama3.2:latest",
-            "deepseek-coder-v2:latest",
-            "deepseek-coder:latest"
+            "deepseek-coder:latest", # 776 MB
+            "llama3:latest",         # 4.7 GB
+            "llama3.2:latest",       # 2.0 GB
+            "deepseek-coder-v2:latest"  # Last resort (8.9 GB)
         ]
         
+        # Request timeout in seconds (increased to 60 seconds)
+        self.request_timeout = 60
+        
+        logger.info(f"🔍 LLM config: type={self.type}, provider={self.provider}, model={self.model}")
+
         logger.info(f"LLM Service initialized with {self.provider} ({self.type})")
         
         # Check if Ollama is available
@@ -64,7 +74,7 @@ class LLMService:
     def check_ollama_available(self) -> bool:
         """Check if Ollama is available"""
         try:
-            response = requests.get('http://localhost:11434/api/tags', timeout=2)
+            response = requests.get('http://localhost:11434/api/tags', timeout=5)  # Increased timeout
             return response.status_code == 200
         except Exception:
             return False
@@ -75,7 +85,7 @@ class LLMService:
             return False
             
         try:
-            response = requests.get('http://localhost:11434/api/tags')
+            response = requests.get('http://localhost:11434/api/tags', timeout=5)  # Increased timeout
             if response.status_code == 200:
                 models = response.json().get('models', [])
                 return any(m.get('name') == model_name for m in models)
@@ -89,7 +99,7 @@ class LLMService:
             return []
             
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
                 async with session.get('http://localhost:11434/api/tags') as response:
                     if response.status == 200:
                         data = await response.json()
@@ -163,62 +173,59 @@ class LLMService:
         
         try:
             logger.debug(f"Sending request to {api_url} with model {self.model}")
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
-                async with session.post(api_url, json=request_data) as response:
-                    if response.status == 200:
-                        response_data = await response.json()
-                        
-                        # Extract response based on provider
-                        if self.provider == 'ollama':
+            timeout = aiohttp.ClientTimeout(total=120)  # 2 min timeout
+            connector = aiohttp.TCPConnector(limit=10)  # Avoids coroutine overlaps
+
+            async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
+                try:
+                    async with session.post(api_url, json=request_data) as response:
+                        if response.status == 200:
+                            response_data = await response.json()
+                            logger.debug(f"✅ Raw response from local model: {response_data}")
+
+                            # Return LLM output
+                            logger.debug(f"Raw response: {response_data}")
                             return response_data.get('response', '')
                         else:
-                            return response_data.get('response', '')
-                    else:
-                        error_text = await response.text()
-                        logger.error(f"Error from local model: {error_text}")
-                        
-                        # Check for model not found error
-                        if 'model not found' in error_text.lower():
-                            logger.warning(f"Model '{self.model}' not found. Attempting to list available models.")
-                            available_models = await self._list_available_models()
-                            
-                            if available_models:
-                                logger.info(f"Available models: {', '.join(available_models)}")
-                                
-                                # Try to find a model that matches from our fallback list
-                                for fallback_model in self.fallback_models:
-                                    if fallback_model in available_models:
-                                        logger.info(f"Trying fallback model: {fallback_model}")
-                                        
-                                        # Update the model name for future requests
-                                        self.model = fallback_model
-                                        
-                                        # Try again with the new model
-                                        request_data['model'] = fallback_model
-                                        try:
-                                            async with session.post(api_url, json=request_data) as retry_response:
-                                                if retry_response.status == 200:
-                                                    retry_data = await retry_response.json()
-                                                    return retry_data.get('response', '')
-                                                else:
-                                                    error_text = await retry_response.text()
-                                                    logger.warning(f"Fallback model {fallback_model} also failed: {error_text}")
-                                        except Exception as e:
-                                            logger.warning(f"Error with fallback model {fallback_model}: {str(e)}")
-                            
-                        # Return error message
-                        return f"Error: {response.status} - {error_text}"
+                            error_text = await response.text()
+                            logger.error(f"❌ HTTP {response.status} Error from local model:\n{error_text}")
+
+                            if 'model not found' in error_text.lower():
+                                logger.warning(f"Model '{self.model}' not found. Attempting fallback...")
+                                available_models = await self._list_available_models()
+                                # for fallback_model in self.fallback_models:
+                                #     if fallback_model in available_models:
+                                #         logger.info(f"Trying fallback model: {fallback_model}")
+                                #         self.model = fallback_model
+                                #         request_data['model'] = fallback_model
+                                #         try:
+                                #             async with session.post(api_url, json=request_data) as retry_response:
+                                #                 if retry_response.status == 200:
+                                #                     retry_data = await retry_response.json()
+                                #                     return retry_data.get('response', '')
+                                #                 else:
+                                #                     error_text = await retry_response.text()
+                                #                     logger.warning(f"Fallback failed: {error_text}")
+                                #         except Exception as e:
+                                #             logger.warning(f"Error with fallback model {fallback_model}: {str(e)}")
+                            return f"Error: {response.status} - {error_text}"
+
+                except asyncio.TimeoutError:
+                    logger.error("❌ LLM request timed out.")
+                    return "Error: Timeout from local model"
+                except asyncio.CancelledError:
+                    logger.error("❌ Request was cancelled (possible overlapping coroutines)")
+                    return "Error: Cancelled request"
+                except Exception as e:
+                    logger.error(f"❌ Exception inside session.post: {str(e)}")
+                    return f"Error: {str(e)}"
+
         except Exception as e:
-            error_msg = str(e)
-            logger.error(f"Error calling local model: {error_msg}")
-            
-            # Fallback for development
-            logger.warning("Using simulated LLM response for development")
-            if 'task' in prompt.lower() and 'plan' in prompt.lower():
-                # Simulate a task planning response
-                return '[{"tool_name": "scene_generator", "parameters": {"description": "A simple scene with a red cube on a blue plane", "style": "basic"}, "description": "Generate a 3D scene with a red cube on a blue plane"}]'
-            return "Simulated LLM response for development"
-    
+            import traceback
+            logger.error("❌ Exception during LLM call:")
+            logger.error(traceback.format_exc())
+            return f"Error calling local model: {str(e)}"
+
     def _try_start_ollama(self) -> bool:
         """Try to start Ollama server"""
         logger.info("Attempting to start Ollama server...")
@@ -230,7 +237,7 @@ class LLMService:
             
             if os.path.exists(ollama_script):
                 subprocess.run([sys.executable, ollama_script, "start"], 
-                              capture_output=True, timeout=10)
+                              capture_output=True, timeout=20)  # Increased timeout
                 
                 # Check if it started successfully
                 if self.check_ollama_available():
@@ -295,7 +302,11 @@ class LLMService:
             }
         
         try:
-            async with aiohttp.ClientSession() as session:
+            # Use increased timeout
+            timeout = aiohttp.ClientTimeout(total=120)  # 2 min timeout
+            connector = aiohttp.TCPConnector(limit=10)  # avoids concurrency bugs
+
+            async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
                 async with session.post(self.api_url, headers=headers, json=request_data) as response:
                     if response.status == 200:
                         response_data = await response.json()

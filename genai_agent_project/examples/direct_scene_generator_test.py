@@ -40,11 +40,27 @@ async def main():
             available_model_names = [model.get('name') for model in models]
             print(f"Available models: {available_model_names}")
             
-            # Choose a valid model for testing
-            for model_name in available_model_names:
-                config['llm']['model'] = model_name
-                print(f"Using model: {model_name}")
-                break
+            # Prioritize smaller models
+            preferred_models = [
+                "llama3:latest",  # First choice
+                "llama3.2:latest", 
+                "deepseek-coder:latest"
+            ]
+            
+            # Try to find one of our preferred models
+            selected_model = None
+            for preferred in preferred_models:
+                if preferred in available_model_names:
+                    selected_model = preferred
+                    break
+            
+            # If no preferred model is found, use the first available
+            if not selected_model and available_model_names:
+                selected_model = available_model_names[0]
+                
+            if selected_model:
+                config['llm']['model'] = selected_model
+                print(f"Using model: {selected_model}")
     else:
         print("Ollama is not running. Starting it...")
         OllamaHelper.start_ollama()

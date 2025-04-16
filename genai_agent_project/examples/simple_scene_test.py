@@ -26,19 +26,39 @@ async def main():
     # Check available Ollama models
     print("Checking for available Ollama models...")
     from genai_agent.tools.ollama_helper import OllamaHelper
-    
+        
     if OllamaHelper.is_ollama_running():
         models = OllamaHelper.list_models()
         if models:
-            print(f"Available models: {[model.get('name') for model in models]}")
+            available_model_names = [model.get('name') for model in models]
+            print(f"Available models: {available_model_names}")
             
-            # Update config to use an available model
-            for model_info in models:
-                model_name = model_info.get('name')
-                if model_name:
-                    config['llm']['model'] = model_name
-                    print(f"Using model: {model_name}")
+            # ✅ Prioritize lighter and known-working models
+            preferred_models = [
+                "deepseek-coder:latest",        # ✅ First choice (smallest & most stable)
+                "llama3.2:latest",              # Second choice (2.0 GB)
+                "llama3:latest",                # Third choice (4.7 GB)
+                "deepseek-coder-v2:latest",     # Largest fallback (8.9 GB)
+            ]
+
+            # Pick the first available model from preferred list
+            for model in preferred_models:
+                if model in available_model_names:
+                    selected_model = model
+                    print(f"Using model: {selected_model}")
                     break
+            else:
+                selected_model = available_model_names[0]
+                print(f"Using fallback model: {selected_model}")
+
+            
+            # If no preferred model is found, use the first available
+            if not selected_model and available_model_names:
+                selected_model = available_model_names[0]
+                
+            if selected_model:
+                config['llm']['model'] = selected_model
+                print(f"Using model: {selected_model}")
     
     # Create GenAI Agent
     agent = GenAIAgent(config)

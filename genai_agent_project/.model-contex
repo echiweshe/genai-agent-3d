@@ -1,0 +1,8 @@
+{
+  "server": "github",
+  "repository": {
+    "owner": "echiweshe",
+    "repo": "genai-agent-3d",
+    "branch": "main"
+  }
+}
