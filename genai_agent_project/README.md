@@ -1,6 +1,6 @@
-# GenAI Agent for 3D Modeling, Scene Generation, and Animation
+# GenAI Agent - 3D Scene Generation Framework
 
-This project implements a modular AI agent architecture for 3D modeling, scene generation, and animation using Blender. It integrates various tools including SceneX, SVG processing, and more into a unified system controlled through natural language instructions, powered by local LLMs via Ollama.
+A framework for AI-driven 3D scene generation, integrating large language models with Blender and other 3D tools.
 
 ## Architecture
 
@@ -25,147 +25,233 @@ The system follows a microservices architecture with the following components:
 └───┬─────────────┬─────────────┬─────────────┬─────────────┬───┘
     │             │             │             │             │
 ┌───▼───┐     ┌───▼───┐     ┌───▼───┐     ┌───▼───┐     ┌───▼───┐
-│SceneX  │     │Blender │     │Ollama  │     │Diagram │     │ SVG    │
-│Service │     │Service │     │Service │     │Service │     │Service │
+│SceneX  │     │Blender │     │Model  │     │Diagram │     │ SVG    │
+│Service │     │Service │     │Service│     │Service │     │Service │
 └───────┘     └───────┘     └───────┘     └───────┘     └───────┘
 ```
 
-## LLM Integration with Ollama
-
-The GenAI Agent uses Ollama for local LLM support, which provides several advantages:
-
-- **Privacy**: All processing happens locally on your machine
-- **No API costs**: No need for subscription to cloud LLM services
-- **Offline operation**: Works without internet connection once models are downloaded
-
-### Using the LLM Service
-
-The LLM Service is automatically configured to use Ollama as its local provider. You can adjust settings in the `config.yaml` file:
-
-```yaml
-services:
-  llm:
-    type: local
-    provider: ollama
-    model: llama3  # Change to your preferred model
-```
-
-You can test the LLM directly from the command line:
-
-```bash
-python run.py ollama test llama3 --prompt "Generate a description for a mountain landscape scene"
-```
-
-For more details on Ollama integration, see the [Ollama Integration Guide](docs/ollama_integration.md).
-
 ## Installation
 
-1. Install dependencies:
+### Prerequisites
 
-```bash
+- Python 3.10+
+- Redis server (optional, for message bus)
+- Blender 4.x installed
+- Ollama (for local LLM support)
+
+### Setup
+
+1. Clone the repository:
+```
+git clone https://github.com/yourusername/genai-agent-3d.git
+cd genai-agent-3d
+```
+
+2. Create and activate a virtual environment:
+```
+python -m venv venv
+source venv/bin/activate  # Linux/Mac
+venv\Scripts\activate     # Windows
+```
+
+3. Install dependencies:
+```
 pip install -r requirements.txt
 ```
 
-2. Install and set up Ollama (optional but recommended):
+4. Configure the application by editing `config.yaml` to match your environment.
 
-```bash
-# Install Ollama
-python run.py ollama install
+### Ollama Setup (Local LLMs)
 
-# Start Ollama server
+1. Install Ollama from [ollama.ai](https://ollama.ai).
+
+2. Start the Ollama server:
+```
 python run.py ollama start
-
-# Download a language model
-python run.py ollama pull llama3
 ```
 
-For more details, see the [Ollama Integration Guide](docs/ollama_integration.md).
-
-3. Make sure you have Blender installed and update the path in `config.yaml`.
-
-4. Start Redis (required for the message bus):
-
-```bash
-# Using the helper script
-python run.py redis
-
-# Or using Docker directly
-docker run -d -p 6379:6379 redis
+3. Pull the required models:
+```
+python run.py ollama pull deepseek-coder
 ```
 
 ## Usage
 
-### Command Line Mode
+### Interactive Shell
 
-Process a single instruction:
-
-```bash
-python main.py --instruction "Create a scene with a red cube on a plane"
-```
-
-### Interactive Mode
-
-Start an interactive session:
-
-```bash
-python main.py
-```
-
-Then type instructions at the prompt:
+Start the interactive shell to work with the agent:
 
 ```
->> Create a scene with a blue sphere and a green cube
->> Animate the sphere rotating around the cube
->> exit
+python run.py shell
 ```
 
-## Project Structure
+This will launch a prompt where you can enter instructions, such as:
 
-- `genai_agent/`: Main package
-  - `core/`: Core components (Task Manager, Context Manager)
-  - `services/`: Services (LLM, Redis, Memory)
-  - `tools/`: Tools for different tasks (Blender, SceneX, SVG, etc.)
-- `config.yaml`: Configuration file
-- `main.py`: Entry point
+```
+> Create a simple scene with a red cube on a blue plane
+```
 
-## Extending the System
+### Running Scripts
 
-### Adding Custom Tools
+You can run a specific instruction without the interactive shell:
 
-1. Create a new tool class in `genai_agent/tools/`:
+```
+python run.py run "Create a scene with a mountain landscape"
+```
+
+### Running Examples
+
+To see available examples:
+
+```
+python run.py examples
+```
+
+To run a specific example:
+
+```
+python run.py examples test_deepseek_coder
+```
+
+## Core Components
+
+### Agent Core
+
+The central orchestration component that coordinates services and tools. It processes user instructions by:
+1. Analyzing the instruction to determine the task
+2. Planning the task execution using available tools
+3. Executing the plan and coordinating between services
+
+### LLM Service
+
+Provides integration with language models, with support for:
+- Local models via Ollama (deepseek-coder, llama3, etc.)
+- API-based models (OpenAI, Anthropic)
+
+### Tool Registry
+
+Manages the available tools and their discovery. Current tools include:
+- **Blender Script Tool**: Executes Python scripts in Blender
+- **Scene Generator Tool**: Creates 3D scenes from descriptions
+- **Model Generator Tool**: Generates 3D models from descriptions
+- **SVG Processor Tool**: Processes SVG files and converts them to 3D models
+
+### Scene Manager
+
+Manages the creation, modification, and retrieval of 3D scenes. Features include:
+- Scene creation and storage
+- Object management
+- Export to various formats
+
+### Asset Manager
+
+Handles storage, retrieval, and metadata for 3D assets like models, textures, and materials.
+
+### Memory Service
+
+Provides persistent storage for agent memory, including conversation history and scene history.
+
+## Examples
+
+### Creating a Simple Scene
 
 ```python
-from genai_agent.tools.registry import Tool
+from genai_agent.agent import GenAIAgent
+import yaml
+import asyncio
 
-class MyCustomTool(Tool):
-    def __init__(self, redis_bus, config):
-        super().__init__(name="my_custom_tool", description="Description of what it does")
-        self.redis_bus = redis_bus
-        self.config = config
-        
-    async def execute(self, parameters):
-        # Implement your tool functionality
-        return {"status": "success", "result": "Tool executed"}
+async def main():
+    # Load configuration
+    with open('config.yaml', 'r') as f:
+        config = yaml.safe_load(f)
+    
+    # Initialize agent
+    agent = GenAIAgent(config)
+    
+    # Process instruction
+    result = await agent.process_instruction(
+        "Create a scene with a red cube on a blue plane"
+    )
+    
+    print(result)
+    
+    # Close agent
+    await agent.close()
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
-2. Enable the tool in `config.yaml`:
+### Working with Blender
 
-```yaml
-tools:
-  enabled:
-    - blender_script
-    - scene_generator
-    - my_custom_tool
+```python
+from genai_agent.tools.blender_script import BlenderScriptTool
+from genai_agent.services.redis_bus import RedisMessageBus
+import asyncio
+
+async def main():
+    # Initialize Redis bus
+    redis_bus = RedisMessageBus({'host': 'localhost', 'port': 6379})
+    await redis_bus.connect()
+    
+    # Initialize Blender script tool
+    blender_tool = BlenderScriptTool(
+        redis_bus,
+        {'blender_path': 'C:\\Program Files\\Blender Foundation\\Blender 4.2\\blender.exe'}
+    )
+    
+    # Execute Blender script
+    result = await blender_tool.execute({
+        'script': """
+import bpy
+
+# Clear existing objects
+bpy.ops.object.select_all(action='SELECT')
+bpy.ops.object.delete()
+
+# Create a cube
+bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))
+        """
+    })
+    
+    print(result)
+    
+    # Close Redis connection
+    await redis_bus.disconnect()
+
+if __name__ == "__main__":
+    asyncio.run(main())
 ```
 
-## Integrating with SceneX
+## Troubleshooting
 
-The SceneXTool provides a simplified implementation that mimics your existing SceneX functionality. To fully integrate your SceneX code:
+### Ollama Issues
 
-1. Update the `_generate_scenex_script` method in `genai_agent/tools/scenex_tool.py`
-2. Import your existing SceneX libraries
-3. Adapt the SceneX coordinate system to work with the Blender environment
+If you encounter issues with Ollama models:
+
+1. Check available models:
+```
+python run.py ollama list
+```
+
+2. If a model is not found, pull it:
+```
+python run.py ollama pull deepseek-coder
+```
+
+3. Check model details:
+```
+python run.py ollama details deepseek-coder
+```
+
+### Blender Issues
+
+Ensure the Blender path in `config.yaml` is correct for your system. On Windows, use double backslashes or forward slashes in the path.
+
+## Contributing
+
+Contributions are welcome! Please feel free to submit a Pull Request.
 
 ## License
 
-This project is licensed under the MIT License.
+MIT License

@@ -45,6 +45,7 @@ You can also try other models like:
 - `llama3:70b` - Larger, more capable Llama 3 model (requires more RAM)
 - `mistral` - Mistral 7B model
 - `gemma:2b` - Lightweight Gemma model
+- `deepseek-coder:16b` - Coding-focused model excellent for Blender scripting
 
 ### 4. Checking Available Models
 
@@ -77,6 +78,66 @@ services:
 ### Changing the Model
 
 To use a different model, update the `model` parameter in the config to match the name of an installed model.
+
+## Using Deepseek-Coder for 3D Modeling
+
+The Deepseek-Coder model (especially the 16B variant) is an excellent choice for Blender scripting and 3D modeling tasks. It excels at generating precise Python code with proper Blender API usage.
+
+### Setting Up Deepseek-Coder
+
+1. Pull the model:
+   ```bash
+   python run.py ollama pull deepseek-coder:16b
+   ```
+
+2. Update your configuration in `config.yaml`:
+   ```yaml
+   services:
+     llm:
+       type: local
+       provider: ollama
+       model: deepseek-coder:16b
+   ```
+
+3. Test the model:
+   ```bash
+   python examples/test_deepseek_coder.py
+   ```
+
+### Optimizing Prompts for Deepseek-Coder
+
+The GenAI Agent automatically optimizes prompts for Deepseek-Coder, but when calling it directly, consider using prompts that:
+
+- Clearly specify the Blender version if relevant
+- Provide context about the desired outcome  
+- Ask for comments in the code
+- Request specific API usage patterns if needed
+
+Example effective prompt:
+```
+Generate Blender 3.x Python code to create a procedural mountainous landscape with snow on the peaks.
+Include comments explaining the key techniques used. The terrain should have varying heights with
+random distribution, and snow should only appear above a certain height threshold.
+```
+
+### System Requirements
+
+The deepseek-coder:16b model requires:
+- At least a 16GB RAM system (24GB+ recommended)
+- 10GB of disk space for the model
+- A GPU is helpful but not required
+
+If you experience out-of-memory issues, consider using the smaller variant:  
+```bash
+python run.py ollama pull deepseek-coder:6.7b
+```
+
+And update your config.yaml accordingly:
+```yaml
+services:
+  llm:
+    model: deepseek-coder:6.7b
+```
 
 ## Automatic Ollama Integration
 

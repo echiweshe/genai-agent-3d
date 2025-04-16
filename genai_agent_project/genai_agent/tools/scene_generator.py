@@ -1,19 +1,22 @@
 """
-Scene Generator Tool for creating 3D scenes
+Scene Generator Tool for creating 3D scenes from descriptions
 """
 
 import logging
-from typing import Dict, Any
+import json
+import uuid
+from typing import Dict, Any, List, Optional
 
 from genai_agent.tools.registry import Tool
 from genai_agent.services.redis_bus import RedisMessageBus
-from genai_agent.tools.blender_script import BlenderScriptTool
+from genai_agent.services.llm import LLMService
+from genai_agent.services.scene_manager import SceneManager
 
 logger = logging.getLogger(__name__)
 
 class SceneGeneratorTool(Tool):
     """
-    Tool for generating 3D scenes based on descriptions
+    Tool for generating 3D scenes from descriptions
     """
     
     def __init__(self, redis_bus: RedisMessageBus, config: Dict[str, Any]):
@@ -26,106 +29,252 @@ class SceneGeneratorTool(Tool):
         """
         super().__init__(
             name="scene_generator",
-            description="Generates 3D scenes based on descriptions"
+            description="Generates 3D scenes from text descriptions"
         )
         
         self.redis_bus = redis_bus
-        self.config = config
-        self.blender_tool = None  # Will be initialized on first use
+        self.config = config or {}
+        
+        # We'll need to get these services from the service registry
+        self.llm_service = None
+        self.scene_manager = None
         
         logger.info("Scene Generator Tool initialized")
     
+    async def _ensure_services(self):
+        """Ensure required services are available"""
+        if self.llm_service is None:
+            # Register for LLM service availability
+            await self.redis_bus.subscribe('service:llm_service:available', self._handle_llm_service_available)
+        
+        if self.scene_manager is None:
+            # Register for Scene Manager service availability
+            await self.redis_bus.subscribe('service:scene_manager:available', self._handle_scene_manager_available)
+
+    async def _handle_llm_service_available(self, message: Dict[str, Any]):
+        """Handle LLM service availability"""
+        service_id = message.get('service_id')
+        # Request service instance via RPC
+        response = await self.redis_bus.call_rpc('service:get', {'service_id': service_id})
+        if 'error' not in response:
+            self.llm_service = response.get('service')
+    
+    async def _handle_scene_manager_available(self, message: Dict[str, Any]):
+        """Handle Scene Manager service availability"""
+        service_id = message.get('service_id')
+        # Request service instance via RPC
+        response = await self.redis_bus.call_rpc('service:get', {'service_id': service_id})
+        if 'error' not in response:
+            self.scene_manager = response.get('service')
+    
     async def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Generate a 3D scene
+        Generate a 3D scene from a description
         
         Args:
             parameters: Scene parameters
                 - description: Scene description
                 - style: Scene style (realistic, cartoon, etc.)
+                - name: Scene name
                 
         Returns:
-            Scene generation result
+            Generated scene information
         """
+        await self._ensure_services()
+        
         # Get parameters
         description = parameters.get('description', '')
-        style = parameters.get('style', 'realistic')
+        style = parameters.get('style', 'basic')
+        name = parameters.get('name', f"Scene {uuid.uuid4().hex[:8]}")
         
-        # For development mode - use a default description if empty
         if not description:
-            description = "A simple demo scene with a cube on a plane"
+            return {
+                'status': 'error',
+                'error': "Scene description is required"
+            }
         
-        # Initialize Blender tool if needed
-        if self.blender_tool is None:
-            from genai_agent.tools.blender_script import BlenderScriptTool
-            self.blender_tool = BlenderScriptTool(self.redis_bus, self.config)
-        
-        # Generate scene script
-        scene_script = self._generate_scene_script(description, style)
-        
-        # Execute script in Blender
-        return await self.blender_tool.execute({
-            'script': scene_script,
-            'format': 'json'
-        })
+        try:
+            # Generate scene using LLM
+            scene_data = await self._generate_scene_data(description, style, name)
+            
+            # Create scene in Scene Manager
+            scene_id = await self.scene_manager.create_scene(scene_data)
+            
+            return {
+                'status': 'success',
+                'scene_id': scene_id,
+                'scene_name': scene_data.get('name'),
+                'object_count': len(scene_data.get('objects', [])),
+                'message': f"Generated scene '{scene_data.get('name')}' with {len(scene_data.get('objects', []))} objects"
+            }
+        except Exception as e:
+            logger.error(f"Error generating scene: {str(e)}")
+            return {
+                'status': 'error',
+                'error': str(e)
+            }
     
-    def _generate_scene_script(self, description: str, style: str) -> str:
+    async def _generate_scene_data(self, description: str, style: str, name: str) -> Dict[str, Any]:
         """
-        Generate Blender Python script for scene
+        Generate scene data from description
         
         Args:
             description: Scene description
             style: Scene style
+            name: Scene name
             
         Returns:
-            Blender Python script
+            Scene data
         """
-        # This is a simplified example
-        # In a real implementation, this would use LLM to generate
-        # the script based on the description and style
+        # Create prompt for LLM
+        prompt = self._create_scene_generation_prompt(description, style, name)
         
-        return f"""
-# Scene generated from description: {description}
-# Style: {style}
+        # Get scene data from LLM
+        if self.llm_service:
+            # Use LLM service
+            response = await self.llm_service.generate(prompt, parameters={'temperature': 0.7})
+        else:
+            # Fallback for development/testing
+            logger.warning("LLM service not available, using fallback scene data")
+            response = self._get_fallback_scene_data(description, style, name)
+        
+        # Parse JSON response
+        try:
+            scene_data = json.loads(response)
+            return scene_data
+        except json.JSONDecodeError:
+            # Try to extract JSON from the response
+            import re
+            json_match = re.search(r'```json\s*(.*?)\s*```', response, re.DOTALL)
+            if json_match:
+                try:
+                    scene_data = json.loads(json_match.group(1))
+                    return scene_data
+                except json.JSONDecodeError:
+                    pass
+            
+            # If still can't parse, use fallback
+            logger.warning("Failed to parse LLM response as JSON, using fallback scene data")
+            return self._get_fallback_scene_data(description, style, name)
+    
+    def _create_scene_generation_prompt(self, description: str, style: str, name: str) -> str:
+        """
+        Create scene generation prompt
+        
+        Args:
+            description: Scene description
+            style: Scene style
+            name: Scene name
+            
+        Returns:
+            LLM prompt
+        """
+        return f"""Generate a 3D scene based on the following description and style.
 
-import bpy
-import math
-import random
+Description: {description}
+Style: {style}
+Name: {name}
 
-# Clear existing objects
-bpy.ops.object.select_all(action='SELECT')
-bpy.ops.object.delete()
+Create a JSON structure that defines the scene with objects. Each object should have:
+- type (cube, sphere, plane, etc.)
+- name
+- position [x, y, z]
+- rotation [x, y, z] in radians
+- scale [x, y, z]
+- properties (materials, etc.)
 
-# Create camera
-bpy.ops.object.camera_add(location=(0, -10, 2), rotation=(math.radians(80), 0, 0))
-camera = bpy.context.active_object
-bpy.context.scene.camera = camera
-
-# Create light
-bpy.ops.object.light_add(type='SUN', location=(0, 0, 5))
-light = bpy.context.active_object
-light.data.energy = 2.0
-
-# Create ground plane
-bpy.ops.mesh.primitive_plane_add(size=20, location=(0, 0, 0))
-ground = bpy.context.active_object
-
-# Add a basic object (placeholder - would be more complex in real implementation)
-bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 1))
-main_object = bpy.context.active_object
-
-# Set scene properties
-scene = bpy.context.scene
-scene.render.engine = 'CYCLES'
-scene.render.film_transparent = True
-scene.render.resolution_x = 1920
-scene.render.resolution_y = 1080
-
-# Store result
-output = {{
-    "objects_created": 4,
-    "camera_position": [0, -10, 2],
-    "main_object_position": [0, 0, 1],
-    "scene_description": "{description}"
+Output the JSON in this format:
+```json
+{{
+  "name": "Scene Name",
+  "description": "Detailed scene description",
+  "objects": [
+    {{
+      "id": "unique-id-1",
+      "type": "cube",
+      "name": "Object Name",
+      "position": [0, 0, 0],
+      "rotation": [0, 0, 0],
+      "scale": [1, 1, 1],
+      "properties": {{
+        "material": {{
+          "name": "Material Name",
+          "color": [r, g, b, a]
+        }}
+      }}
+    }}
+  ]
 }}
+```
+
+Generate a complete scene with appropriate objects, camera, and lighting.
 """
+    
+    def _get_fallback_scene_data(self, description: str, style: str, name: str) -> Dict[str, Any]:
+        """
+        Get fallback scene data
+        
+        Args:
+            description: Scene description
+            style: Scene style
+            name: Scene name
+            
+        Returns:
+            Fallback scene data
+        """
+        return {
+            "name": name,
+            "description": f"A {style} scene with {description}",
+            "objects": [
+                {
+                    "id": str(uuid.uuid4()),
+                    "type": "cube",
+                    "name": "Red Cube",
+                    "position": [0, 0, 1],
+                    "rotation": [0, 0, 0],
+                    "scale": [1, 1, 1],
+                    "properties": {
+                        "material": {
+                            "name": "Red",
+                            "color": [1, 0, 0, 1]
+                        }
+                    }
+                },
+                {
+                    "id": str(uuid.uuid4()),
+                    "type": "plane",
+                    "name": "Blue Plane",
+                    "position": [0, 0, 0],
+                    "rotation": [0, 0, 0],
+                    "scale": [10, 10, 1],
+                    "properties": {
+                        "material": {
+                            "name": "Blue",
+                            "color": [0, 0, 1, 1]
+                        },
+                        "size": 10
+                    }
+                },
+                {
+                    "id": str(uuid.uuid4()),
+                    "type": "camera",
+                    "name": "Main Camera",
+                    "position": [5, -5, 5],
+                    "rotation": [0.955, 0, 0.785],
+                    "scale": [1, 1, 1],
+                    "properties": {}
+                },
+                {
+                    "id": str(uuid.uuid4()),
+                    "type": "light",
+                    "name": "Sun Light",
+                    "position": [0, 0, 10],
+                    "rotation": [0, 0, 0],
+                    "scale": [1, 1, 1],
+                    "properties": {
+                        "light_type": "SUN",
+                        "energy": 1.0
+                    }
+                }
+            ]
+        }

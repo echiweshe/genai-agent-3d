@@ -9,7 +9,7 @@ import os
 import sys
 import requests
 import subprocess
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Union
 
 logger = logging.getLogger(__name__)
 
@@ -76,6 +76,23 @@ class LLMService:
         except Exception:
             return False
     
+    async def _list_available_models(self) -> List[str]:
+        """List available models"""
+        if self.provider != 'ollama':
+            return []
+            
+        try:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
+                async with session.get('http://localhost:11434/api/tags') as response:
+                    if response.status == 200:
+                        data = await response.json()
+                        models = data.get('models', [])
+                        return [model.get('name') for model in models if model.get('name')]
+                    return []
+        except Exception as e:
+            logger.error(f"Error listing models: {str(e)}")
+            return []
+    
     async def generate(self, prompt: str, context: Optional[Dict[str, Any]] = None, 
                       parameters: Optional[Dict[str, Any]] = None) -> str:
         """
@@ -101,7 +118,7 @@ class LLMService:
         else:
             return await self._generate_api(prompt, context, parameters)
     
-    def _try_start_ollama(self):
+    def _try_start_ollama(self) -> bool:
         """Try to start Ollama server"""
         logger.info("Attempting to start Ollama server...")
         
@@ -162,7 +179,7 @@ class LLMService:
         
         try:
             logger.debug(f"Sending request to {api_url} with model {self.model}")
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
                 async with session.post(api_url, json=request_data) as response:
                     if response.status == 200:
                         response_data = await response.json()
@@ -175,6 +192,28 @@ class LLMService:
                     else:
                         error_text = await response.text()
                         logger.error(f"Error from local model: {error_text}")
+                        
+                        # Check for model not found error
+                        if 'model not found' in error_text.lower():
+                            logger.warning(f"Model '{self.model}' not found. Attempting to list available models.")
+                            available_models = await self._list_available_models()
+                            
+                            if available_models:
+                                logger.info(f"Available models: {', '.join(available_models)}")
+                                # Try to find a similar model
+                                for available_model in available_models:
+                                    if self.model.lower() in available_model.lower() or available_model.lower() in self.model.lower():
+                                        logger.info(f"Found similar model: {available_model}. Will try using this instead.")
+                                        # Try the request again with the new model
+                                        request_data['model'] = available_model
+                                        try:
+                                            async with session.post(api_url, json=request_data) as retry_response:
+                                                if retry_response.status == 200:
+                                                    retry_data = await retry_response.json()
+                                                    return retry_data.get('response', '')
+                                        except:
+                                            pass  # If this fails, continue to fallback
+                            
                         return f"Error: {response.status} - {error_text}"
         except Exception as e:
             error_msg = str(e)
@@ -240,7 +279,7 @@ class LLMService:
             }
         
         try:
-            async with aiohttp.ClientSession() as session:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
                 async with session.post(self.api_url, headers=headers, json=request_data) as response:
                     if response.status == 200:
                         response_data = await response.json()
@@ -262,11 +301,159 @@ class LLMService:
     
     def _prepare_prompt(self, prompt: str, context: Optional[Dict[str, Any]] = None) -> str:
         """Prepare prompt with context"""
-        if not context:
+        if context is None:
             return prompt
-            
-        # Format context as string
-        context_str = json.dumps(context, indent=2)
         
-        # Combine context and prompt
-        return f"Context:\n{context_str}\n\nPrompt:\n{prompt}"
+        if self.provider == 'ollama' and 'deepseek-coder' in self.model:
+            # Special formatting for deepseek-coder model
+            base_prompt = """You are a 3D modeling assistant specialized in Blender Python scripting.
+            
+Focus on generating precise, efficient, and well-structured Python code for Blender.
+When providing solutions:
+- Use clean, optimized code
+- Add detailed comments
+- Follow Blender Python API best practices
+- Ensure the code is ready to run in Blender without modifications
+
+"""
+            return base_prompt + prompt
+        
+        # Add context to prompt
+        if 'scene' in context:
+            scene_desc = json.dumps(context['scene'], indent=2)
+            prompt = f"Scene information:\n{scene_desc}\n\n{prompt}"
+        
+        if 'history' in context:
+            history_str = "\n".join([f"- {item}" for item in context['history']])
+            prompt = f"Previous actions:\n{history_str}\n\n{prompt}"
+        
+        return prompt
+    
+    async def classify_task(self, instruction: str) -> Dict[str, Any]:
+        """
+        Classify a user instruction into a structured task
+        
+        Args:
+            instruction: User instruction
+            
+        Returns:
+            Structured task information
+        """
+        prompt = f"""Analyze the following instruction and convert it into a structured task for a 3D scene generation agent.
+
+Instruction: {instruction}
+
+Output a JSON object with the following structure:
+{{
+  "task_type": "scene_generation" | "model_creation" | "animation" | "modification" | "analysis",
+  "description": "Brief description of what needs to be done",
+  "parameters": {{
+    // Task-specific parameters
+  }}
+}}
+
+JSON Response:"""
+        
+        response = await self.generate(prompt, parameters={'temperature': 0.2})
+        
+        try:
+            # Try to parse the response as JSON
+            result = json.loads(response)
+            return result
+        except json.JSONDecodeError:
+            # If the response is not valid JSON, try to extract JSON from it
+            import re
+            
+            # Look for JSON pattern
+            json_match = re.search(r'({[\s\S]*})', response)
+            if json_match:
+                try:
+                    result = json.loads(json_match.group(1))
+                    return result
+                except json.JSONDecodeError:
+                    pass
+            
+            # Return a fallback result
+            logger.warning(f"Failed to parse LLM response as JSON: {response}")
+            return {
+                "task_type": "scene_generation",
+                "description": instruction,
+                "parameters": {}
+            }
+    
+    async def plan_task_execution(self, task: Dict[str, Any], available_tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+        """
+        Plan the execution of a task using available tools
+        
+        Args:
+            task: Task information
+            available_tools: List of available tools
+            
+        Returns:
+            List of steps to execute
+        """
+        # Prepare tool information
+        tools_info = json.dumps([
+            {
+                "name": tool["name"],
+                "description": tool["description"]
+            }
+            for tool in available_tools
+        ], indent=2)
+        
+        # Prepare task information
+        task_info = json.dumps(task, indent=2)
+        
+        # Create prompt
+        prompt = f"""Given the following task and available tools, create a step-by-step execution plan.
+
+Task: {task_info}
+
+Available Tools: {tools_info}
+
+Output a JSON array of steps, where each step has the following structure:
+{{
+  "tool_name": "name of the tool to use",
+  "parameters": {{
+    // Tool-specific parameters
+  }},
+  "description": "Description of what this step does"
+}}
+
+Ensure each step can be executed by one of the available tools. If the task cannot be completed with the available tools, explain why in the output.
+
+JSON Response:"""
+        
+        response = await self.generate(prompt, parameters={'temperature': 0.2})
+        
+        try:
+            # Try to parse the response as JSON
+            result = json.loads(response)
+            if isinstance(result, list):
+                return result
+            elif isinstance(result, dict) and 'steps' in result:
+                return result['steps']
+            else:
+                return [result]
+        except json.JSONDecodeError:
+            # If the response is not valid JSON, try to extract JSON from it
+            import re
+            
+            # Look for JSON array pattern
+            json_match = re.search(r'(\[[\s\S]*\])', response)
+            if json_match:
+                try:
+                    result = json.loads(json_match.group(1))
+                    return result
+                except json.JSONDecodeError:
+                    pass
+            
+            # Return a fallback result
+            logger.warning(f"Failed to parse LLM response as JSON: {response}")
+            return [{
+                "tool_name": "scene_generator",
+                "parameters": {
+                    "description": task["description"]
+                },
+                "description": f"Generate a scene based on the description: {task['description']}"
+            }]

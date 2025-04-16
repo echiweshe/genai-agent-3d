@@ -1,22 +1,23 @@
 """
-SVG Processor Tool for converting SVGs to 3D scenes
+SVG Processor Tool for working with SVG files
 """
 
 import logging
 import os
-import json
 import re
-from typing import Dict, Any, List, Optional
+import uuid
+import xml.etree.ElementTree as ET
+from typing import Dict, Any, List, Optional, Tuple
 
 from genai_agent.tools.registry import Tool
 from genai_agent.services.redis_bus import RedisMessageBus
-from genai_agent.tools.blender_script import BlenderScriptTool
+from genai_agent.services.asset_manager import AssetManager
 
 logger = logging.getLogger(__name__)
 
 class SVGProcessorTool(Tool):
     """
-    Tool for converting SVGs to 3D scenes
+    Tool for processing SVG files and converting them to 3D models
     """
     
     def __init__(self, redis_bus: RedisMessageBus, config: Dict[str, Any]):
@@ -29,329 +30,395 @@ class SVGProcessorTool(Tool):
         """
         super().__init__(
             name="svg_processor",
-            description="Converts SVG graphics to 3D scenes"
+            description="Processes SVG files and converts them to 3D models"
         )
         
         self.redis_bus = redis_bus
-        self.config = config
-        self.blender_tool = None  # Will be initialized on first use
+        self.config = config or {}
+        
+        # Output directory for processed SVGs
+        self.output_dir = self.config.get('output_dir', 'output/svg/')
+        if not os.path.exists(self.output_dir):
+            os.makedirs(self.output_dir, exist_ok=True)
+        
+        # We'll need to get these services from the service registry
+        self.asset_manager = None
         
         logger.info("SVG Processor Tool initialized")
     
+    def _ensure_services(self):
+        """Ensure required services are available"""
+        if self.asset_manager is None:
+            # Register for Asset Manager service availability
+            self.redis_bus.subscribe('service:asset_manager:available', self._handle_asset_manager_available)
+    
+    async def _handle_asset_manager_available(self, message: Dict[str, Any]):
+        """Handle Asset Manager service availability"""
+        service_id = message.get('service_id')
+        # Request service instance via RPC
+        response = await self.redis_bus.call_rpc('service:get', {'service_id': service_id})
+        if 'error' not in response:
+            self.asset_manager = response.get('service')
+    
     async def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Process an SVG and convert to 3D
+        Process an SVG file
         
         Args:
-            parameters: SVG parameters
+            parameters: Processing parameters
                 - svg_content: SVG content string
-                - extrude_depth: Depth to extrude 2D shapes (default: 0.1)
-                - animation: Animation parameters
+                - svg_file: Path to SVG file (alternative to svg_content)
+                - operation: Operation to perform (analyze, convert_to_3d, extract_paths)
+                - extrude_depth: Extrusion depth for 3D conversion (default: 0.1)
+                - name: Output name
                 
         Returns:
             Processing result
         """
+        self._ensure_services()
+        
         # Get parameters
-        svg_content = parameters.get('svg_content', '')
+        svg_content = parameters.get('svg_content')
+        svg_file = parameters.get('svg_file')
+        operation = parameters.get('operation', 'analyze')
         extrude_depth = parameters.get('extrude_depth', 0.1)
-        animation = parameters.get('animation', {})
+        name = parameters.get('name', f"SVG_{uuid.uuid4().hex[:8]}")
         
-        if not svg_content:
-            raise ValueError("SVG content parameter is required")
+        # Either svg_content or svg_file must be provided
+        if not svg_content and not svg_file:
+            return {
+                'status': 'error',
+                'error': "Either svg_content or svg_file must be provided"
+            }
         
-        # Initialize Blender tool if needed
-        if self.blender_tool is None:
-            from genai_agent.tools.blender_script import BlenderScriptTool
-            self.blender_tool = BlenderScriptTool(self.redis_bus, self.config)
-        
-        # Parse SVG content
-        svg_elements = self._parse_svg(svg_content)
-        
-        # Generate Blender script for SVG conversion
-        blender_script = self._generate_svg_conversion_script(svg_elements, extrude_depth, animation)
-        
-        # Execute script in Blender
-        return await self.blender_tool.execute({
-            'script': blender_script,
-            'format': 'json'
-        })
+        try:
+            # Get SVG content from file if not provided directly
+            if not svg_content and svg_file:
+                if not os.path.exists(svg_file):
+                    return {
+                        'status': 'error',
+                        'error': f"SVG file not found: {svg_file}"
+                    }
+                
+                with open(svg_file, 'r') as f:
+                    svg_content = f.read()
+            
+            # Process SVG based on operation
+            if operation == 'analyze':
+                result = self._analyze_svg(svg_content)
+            elif operation == 'convert_to_3d':
+                result = await self._convert_to_3d(svg_content, name, extrude_depth)
+            elif operation == 'extract_paths':
+                result = self._extract_paths(svg_content)
+            else:
+                return {
+                    'status': 'error',
+                    'error': f"Unsupported operation: {operation}"
+                }
+            
+            # Add operation and name to result
+            result['operation'] = operation
+            result['name'] = name
+            
+            return result
+        except Exception as e:
+            logger.error(f"Error processing SVG: {str(e)}")
+            return {
+                'status': 'error',
+                'error': str(e)
+            }
     
-    def _parse_svg(self, svg_content: str) -> List[Dict[str, Any]]:
+    def _analyze_svg(self, svg_content: str) -> Dict[str, Any]:
         """
-        Parse SVG content into elements
+        Analyze SVG content
         
         Args:
             svg_content: SVG content string
             
         Returns:
-            List of SVG elements
+            Analysis result
         """
-        # This is a simple placeholder parser
-        # In a real implementation, this would use a proper SVG parser
-        
-        elements = []
-        
-        # Extract viewBox
-        viewbox_match = re.search(r'viewBox="([^"]+)"', svg_content)
-        viewbox = viewbox_match.group(1).split() if viewbox_match else ["0", "0", "100", "100"]
-        viewbox = [float(v) for v in viewbox]
-        
-        # Extract paths
-        path_matches = re.finditer(r'<path[^>]*d="([^"]+)"[^>]*>', svg_content)
-        for i, match in enumerate(path_matches):
-            path_data = match.group(1)
-            elements.append({
-                'type': 'path',
-                'id': f'path_{i}',
-                'data': path_data
-            })
-        
-        # Extract rectangles
-        rect_matches = re.finditer(r'<rect[^>]*x="([^"]+)"[^>]*y="([^"]+)"[^>]*width="([^"]+)"[^>]*height="([^"]+)"[^>]*>', svg_content)
-        for i, match in enumerate(rect_matches):
-            elements.append({
-                'type': 'rect',
-                'id': f'rect_{i}',
-                'x': float(match.group(1)),
-                'y': float(match.group(2)),
-                'width': float(match.group(3)),
-                'height': float(match.group(4))
-            })
-        
-        # Extract circles
-        circle_matches = re.finditer(r'<circle[^>]*cx="([^"]+)"[^>]*cy="([^"]+)"[^>]*r="([^"]+)"[^>]*>', svg_content)
-        for i, match in enumerate(circle_matches):
-            elements.append({
-                'type': 'circle',
-                'id': f'circle_{i}',
-                'cx': float(match.group(1)),
-                'cy': float(match.group(2)),
-                'r': float(match.group(3))
-            })
-        
-        # Extract SVG viewBox for scaling
-        elements.append({
-            'type': 'viewbox',
-            'x': viewbox[0],
-            'y': viewbox[1],
-            'width': viewbox[2],
-            'height': viewbox[3]
-        })
-        
-        return elements
+        try:
+            # Parse SVG
+            root = ET.fromstring(svg_content)
+            
+            # Get SVG namespace
+            ns = self._get_svg_namespace(root)
+            
+            # Get SVG dimensions
+            width, height = self._get_svg_dimensions(root)
+            
+            # Count elements
+            element_counts = {}
+            
+            # Recursive function to count elements
+            def count_elements(element):
+                tag = element.tag
+                if ns and tag.startswith('{' + ns + '}'):
+                    tag = tag[len(ns) + 2:]  # Remove namespace
+                
+                element_counts[tag] = element_counts.get(tag, 0) + 1
+                
+                for child in element:
+                    count_elements(child)
+            
+            count_elements(root)
+            
+            # Extract viewBox
+            viewbox = root.get('viewBox')
+            
+            return {
+                'status': 'success',
+                'width': width,
+                'height': height,
+                'viewBox': viewbox,
+                'element_counts': element_counts,
+                'message': f"Analyzed SVG with {sum(element_counts.values())} elements"
+            }
+        except Exception as e:
+            logger.error(f"Error analyzing SVG: {str(e)}")
+            return {
+                'status': 'error',
+                'error': str(e)
+            }
     
-    def _generate_svg_conversion_script(self, svg_elements: List[Dict[str, Any]], 
-                                       extrude_depth: float,
-                                       animation: Dict[str, Any]) -> str:
+    async def _convert_to_3d(self, svg_content: str, name: str, extrude_depth: float) -> Dict[str, Any]:
         """
-        Generate Blender script for SVG conversion
+        Convert SVG to 3D model
         
         Args:
-            svg_elements: List of SVG elements
-            extrude_depth: Depth to extrude 2D shapes
-            animation: Animation parameters
+            svg_content: SVG content string
+            name: Output name
+            extrude_depth: Extrusion depth
+            
+        Returns:
+            Conversion result
+        """
+        try:
+            # Generate Blender script for SVG extrusion
+            script = self._generate_svg_extrusion_script(svg_content, name, extrude_depth)
+            
+            # Save SVG file
+            svg_path = os.path.join(self.output_dir, f"{name}.svg")
+            with open(svg_path, 'w') as f:
+                f.write(svg_content)
+            
+            # Save script file
+            script_path = os.path.join(self.output_dir, f"{name}_extrude.py")
+            with open(script_path, 'w') as f:
+                f.write(script)
+            
+            # Model output path (would be created by Blender script)
+            model_path = os.path.join(self.output_dir, f"{name}.blend")
+            
+            # Store files as assets if asset manager is available
+            asset_ids = {}
+            if self.asset_manager:
+                # Store SVG file
+                svg_asset_id = await self.asset_manager.store_asset(svg_path, {
+                    'name': name,
+                    'type': 'svg',
+                    'extrude_depth': extrude_depth
+                })
+                asset_ids['svg'] = svg_asset_id
+                
+                # Store script file
+                script_asset_id = await self.asset_manager.store_asset(script_path, {
+                    'name': f"{name}_extrude",
+                    'type': 'blender_script',
+                    'related_svg': svg_asset_id
+                }, 'script')
+                asset_ids['script'] = script_asset_id
+            
+            return {
+                'status': 'success',
+                'svg_path': svg_path,
+                'script_path': script_path,
+                'model_path': model_path,  # Would be created by executing the script
+                'asset_ids': asset_ids,
+                'message': f"Generated SVG extrusion script for '{name}' with depth {extrude_depth}",
+                'script': script[:500] + "..." if len(script) > 500 else script  # Preview
+            }
+        except Exception as e:
+            logger.error(f"Error converting SVG to 3D: {str(e)}")
+            return {
+                'status': 'error',
+                'error': str(e)
+            }
+    
+    def _extract_paths(self, svg_content: str) -> Dict[str, Any]:
+        """
+        Extract paths from SVG
+        
+        Args:
+            svg_content: SVG content string
+            
+        Returns:
+            Extracted paths
+        """
+        try:
+            # Parse SVG
+            root = ET.fromstring(svg_content)
+            
+            # Get SVG namespace
+            ns = self._get_svg_namespace(root)
+            
+            # Find all path elements
+            path_tag = '{' + ns + '}path' if ns else 'path'
+            paths = []
+            
+            # Recursive function to find paths
+            def find_paths(element):
+                if element.tag == path_tag:
+                    path_data = {
+                        'id': element.get('id', f"path_{len(paths)}"),
+                        'd': element.get('d', ''),
+                        'style': element.get('style', ''),
+                        'fill': element.get('fill', ''),
+                        'stroke': element.get('stroke', ''),
+                        'stroke-width': element.get('stroke-width', '')
+                    }
+                    paths.append(path_data)
+                
+                for child in element:
+                    find_paths(child)
+            
+            find_paths(root)
+            
+            return {
+                'status': 'success',
+                'paths': paths,
+                'path_count': len(paths),
+                'message': f"Extracted {len(paths)} paths from SVG"
+            }
+        except Exception as e:
+            logger.error(f"Error extracting paths from SVG: {str(e)}")
+            return {
+                'status': 'error',
+                'error': str(e)
+            }
+    
+    def _generate_svg_extrusion_script(self, svg_content: str, name: str, extrude_depth: float) -> str:
+        """
+        Generate Blender script for SVG extrusion
+        
+        Args:
+            svg_content: SVG content string
+            name: Output name
+            extrude_depth: Extrusion depth
             
         Returns:
             Blender Python script
         """
-        # This is a simplified script generator
-        # In a real implementation, this would be much more complex
+        # Save SVG to temporary file (will be read by Blender)
+        svg_path = os.path.join(self.output_dir, f"{name}.svg")
         
-        script = f"""
-# SVG to 3D conversion script
-
+        # Generate script
+        script = f"""# Blender script to import and extrude SVG: {name}
 import bpy
-import math
 import os
-from mathutils import Vector
 
 # Clear existing objects
 bpy.ops.object.select_all(action='SELECT')
 bpy.ops.object.delete()
 
-# SVG Conversion Utilities
-class SVGConverter:
-    @staticmethod
-    def create_rectangle(x, y, width, height, name, extrude_depth={extrude_depth}):
-        # Create rectangle mesh
-        verts = [
-            Vector((x, y, 0)),
-            Vector((x + width, y, 0)),
-            Vector((x + width, y + height, 0)),
-            Vector((x, y + height, 0))
-        ]
-        faces = [(0, 1, 2, 3)]
+# Import SVG
+svg_path = "{svg_path.replace('\\', '/')}"
+bpy.ops.import_curve.svg(filepath=svg_path)
+
+# Select all curve objects
+bpy.ops.object.select_all(action='DESELECT')
+for obj in bpy.context.scene.objects:
+    if obj.type == 'CURVE':
+        obj.select_set(True)
         
-        mesh = bpy.data.meshes.new(name)
-        obj = bpy.data.objects.new(name, mesh)
+        # Set curve properties for extrusion
+        obj.data.dimensions = '3D'
+        obj.data.bevel_depth = {extrude_depth}
+        obj.data.bevel_resolution = 4
         
-        mesh.from_pydata(verts, [], faces)
-        mesh.update()
-        
-        # Link object to scene
-        bpy.context.collection.objects.link(obj)
-        
-        # Extrude
-        if extrude_depth > 0:
-            bpy.context.view_layer.objects.active = obj
-            obj.select_set(True)
-            bpy.ops.object.mode_set(mode='EDIT')
-            bpy.ops.mesh.select_all(action='SELECT')
-            bpy.ops.mesh.extrude_region_move(
-                TRANSFORM_OT_translate=(0, 0, extrude_depth)
-            )
-            bpy.ops.object.mode_set(mode='OBJECT')
-        
-        return obj
+        # Add material
+        if len(obj.data.materials) == 0:
+            mat = bpy.data.materials.new(name=f"{{obj.name}}_material")
+            mat.diffuse_color = (0.8, 0.8, 0.8, 1.0)
+            obj.data.materials.append(mat)
+
+# Join all curve objects into one
+if len(bpy.context.selected_objects) > 1:
+    bpy.context.view_layer.objects.active = bpy.context.selected_objects[0]
+    bpy.ops.object.join()
     
-    @staticmethod
-    def create_circle(cx, cy, r, name, extrude_depth={extrude_depth}):
-        # Create circle mesh
-        bpy.ops.mesh.primitive_circle_add(
-            radius=r,
-            location=(cx, cy, 0),
-            vertices=32
-        )
-        obj = bpy.context.active_object
-        obj.name = name
-        
-        # Fill circle
-        bpy.context.view_layer.objects.active = obj
-        bpy.ops.object.mode_set(mode='EDIT')
-        bpy.ops.mesh.select_all(action='SELECT')
-        bpy.ops.mesh.edge_face_add()
-        
-        # Extrude
-        if extrude_depth > 0:
-            bpy.ops.mesh.extrude_region_move(
-                TRANSFORM_OT_translate=(0, 0, extrude_depth)
-            )
-        
-        bpy.ops.object.mode_set(mode='OBJECT')
-        
-        return obj
-    
-    @staticmethod
-    def create_path(path_data, name, extrude_depth={extrude_depth}):
-        # In a real implementation, this would parse SVG path data
-        # For simplicity, we'll just create a placeholder object
-        bpy.ops.mesh.primitive_plane_add(size=1, location=(0, 0, 0))
-        obj = bpy.context.active_object
-        obj.name = name
-        
-        # Add a custom property with the path data for reference
-        obj["svg_path_data"] = path_data
-        
-        # Note: Real implementation would convert path to curves
-        
-        return obj
+    # Rename the joined object
+    bpy.context.active_object.name = "{name}"
 
-# Scene setup
-scene = bpy.context.scene
-scene.render.engine = 'CYCLES'
-scene.render.film_transparent = True
-scene.render.resolution_x = 1920
-scene.render.resolution_y = 1080
-
-# Get SVG viewbox for scaling
-viewbox = None
-for element in {svg_elements}:
-    if element.get('type') == 'viewbox':
-        viewbox = element
-        break
-
-# Scale factor to normalize coordinates
-scale_factor = 10.0 / max(viewbox['width'], viewbox['height']) if viewbox else 0.1
-
-# Create objects
-created_objects = []
-"""
-        
-        # Process each SVG element
-        for element in svg_elements:
-            if element['type'] == 'viewbox':
-                continue  # Already processed
-                
-            elif element['type'] == 'rect':
-                script += f"""
-# Create rectangle: {element['id']}
-x = {element['x']} * scale_factor
-y = {element['y']} * scale_factor
-width = {element['width']} * scale_factor
-height = {element['height']} * scale_factor
-obj = SVGConverter.create_rectangle(x, y, width, height, "{element['id']}", {extrude_depth})
-created_objects.append(obj)
-"""
-            
-            elif element['type'] == 'circle':
-                script += f"""
-# Create circle: {element['id']}
-cx = {element['cx']} * scale_factor
-cy = {element['cy']} * scale_factor
-r = {element['r']} * scale_factor
-obj = SVGConverter.create_circle(cx, cy, r, "{element['id']}", {extrude_depth})
-created_objects.append(obj)
-"""
-            
-            elif element['type'] == 'path':
-                script += f"""
-# Create path: {element['id']}
-path_data = "{element['data']}"
-obj = SVGConverter.create_path(path_data, "{element['id']}", {extrude_depth})
-created_objects.append(obj)
-"""
-        
-        # Add camera setup
-        script += """
-# Setup camera
-bpy.ops.object.camera_add(location=(0, 0, 20))
+# Add a camera for rendering
+bpy.ops.object.camera_add(location=(0, 0, 10))
 camera = bpy.context.active_object
-camera.name = "SVGCamera"
+camera.name = "{name}_camera"
 bpy.context.scene.camera = camera
 
-# Point camera at the center of objects
-constraint = camera.constraints.new(type='TRACK_TO')
-empty = bpy.data.objects.new("CameraTarget", None)
-bpy.context.collection.objects.link(empty)
-empty.location = (0, 0, 0)
-constraint.target = empty
-constraint.track_axis = 'TRACK_NEGATIVE_Z'
-constraint.up_axis = 'UP_Y'
-"""
-        
-        # Add animation if specified
-        if animation:
-            script += """
-# Animation setup
-scene.frame_start = 1
-"""
-            frame_end = animation.get('frame_end', 250)
-            script += f"scene.frame_end = {frame_end}\n"
-            
-            # Add basic animation (rotation)
-            script += f"""
-# Create a parent object for animation
-bpy.ops.object.empty_add(type='PLAIN_AXES', location=(0, 0, 0))
-parent = bpy.context.active_object
-parent.name = "SVGParent"
+# Add lighting
+bpy.ops.object.light_add(type='SUN', location=(5, 5, 10))
+light = bpy.context.active_object
+light.name = "{name}_light"
+light.data.energy = 2.0
 
-# Parent all created objects to the empty
-for obj in created_objects:
-    obj.parent = parent
+# Save the file
+output_path = os.path.join("{self.output_dir.replace('\\', '/')}", "{name}.blend")
+bpy.ops.wm.save_as_mainfile(filepath=output_path)
 
-# Add rotation animation
-parent.keyframe_insert(data_path="rotation_euler", frame=1)
-parent.rotation_euler = (0, 0, math.radians(360))
-parent.keyframe_insert(data_path="rotation_euler", frame={frame_end})
-"""
-        
-        # Add output information
-        script += """
-# Store result
-output = {
-    "status": "success",
-    "objects_created": len(created_objects),
-    "object_names": [obj.name for obj in created_objects]
-}
+print(f"Completed SVG extrusion for {name} with depth {extrude_depth}")
 """
         return script
+    
+    def _get_svg_namespace(self, root) -> Optional[str]:
+        """
+        Get SVG namespace from root element
+        
+        Args:
+            root: SVG root element
+            
+        Returns:
+            Namespace string or None
+        """
+        # Extract namespace from root tag
+        match = re.match(r'(\{(.*?)\})', root.tag)
+        if match:
+            return match.group(2)
+        return None
+    
+    def _get_svg_dimensions(self, root) -> Tuple[Optional[float], Optional[float]]:
+        """
+        Get SVG dimensions from root element
+        
+        Args:
+            root: SVG root element
+            
+        Returns:
+            (width, height) tuple
+        """
+        width = root.get('width')
+        height = root.get('height')
+        
+        # Convert to float if possible
+        try:
+            width = float(width) if width else None
+        except ValueError:
+            # Handle units like '100px'
+            match = re.match(r'(\d+(\.\d+)?)([a-z]+)?', width)
+            if match:
+                width = float(match.group(1))
+            else:
+                width = None
+        
+        try:
+            height = float(height) if height else None
+        except ValueError:
+            # Handle units like '100px'
+            match = re.match(r'(\d+(\.\d+)?)([a-z]+)?', height)
+            if match:
+                height = float(match.group(1))
+            else:
+                height = None
+        
+        return width, height

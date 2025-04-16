@@ -1,126 +1,249 @@
 """
-GenAI Agent core module
+GenAI Agent - Main agent class
 """
 
-import asyncio
 import logging
-from typing import Dict, Any, List, Optional
+import json
+import asyncio
+from typing import Dict, Any, List, Optional, Union
 
 from genai_agent.services.llm import LLMService
 from genai_agent.services.redis_bus import RedisMessageBus
+from genai_agent.services.scene_manager import SceneManager
 from genai_agent.tools.registry import ToolRegistry
-from genai_agent.core.task_manager import TaskManager
-from genai_agent.core.context_manager import ContextManager
-from genai_agent.services.memory import MemoryService
 
 logger = logging.getLogger(__name__)
 
 class GenAIAgent:
     """
-    Main agent class for orchestrating all components
+    GenAI Agent for 3D scene generation
+    
+    Central orchestration component that coordinates services and tools.
     """
     
     def __init__(self, config: Dict[str, Any]):
         """
-        Initialize the GenAI Agent with configuration
+        Initialize GenAI Agent
         
         Args:
-            config: Dictionary containing configuration for all components
+            config: Agent configuration
         """
         self.config = config
-        logger.info("Initializing GenAI Agent")
         
         # Initialize services
-        self.redis_bus = RedisMessageBus(config.get('services', {}).get('redis', {}))
-        self.llm_service = LLMService(config.get('services', {}).get('llm', {}))
-        self.memory_service = MemoryService(self.redis_bus)
-        
-        # Initialize core components
-        self.context_manager = ContextManager(self.memory_service)
-        self.tool_registry = ToolRegistry()
-        self.task_manager = TaskManager(
-            llm_service=self.llm_service,
-            tool_registry=self.tool_registry,
-            context_manager=self.context_manager
-        )
+        self._init_services()
         
         # Register tools
         self._register_tools()
         
-        logger.info("GenAI Agent initialized successfully")
+        logger.info("GenAI Agent initialized")
+    
+    def _init_services(self):
+        """Initialize services"""
+        # Redis Message Bus
+        redis_config = self.config.get('redis', {})
+        self.redis_bus = RedisMessageBus(redis_config)
+        
+        # LLM Service
+        llm_config = self.config.get('llm', {})
+        self.llm_service = LLMService(llm_config)
+        
+        # Scene Manager
+        scene_config = self.config.get('scene', {})
+        self.scene_manager = SceneManager(self.redis_bus, scene_config)
+        
+        # Tool Registry
+        self.tool_registry = ToolRegistry()
+        
+        # Store services for access by tools
+        self.services = {
+            'redis_bus': self.redis_bus,
+            'llm_service': self.llm_service,
+            'scene_manager': self.scene_manager,
+            'tool_registry': self.tool_registry
+        }
     
     def _register_tools(self):
-        """Register all enabled tools from configuration"""
-        tool_config = self.config.get('tools', {})
-        enabled_tools = tool_config.get('enabled', [])
+        """Register tools"""
+        # Get tool configurations
+        tool_configs = self.config.get('tools', {})
         
-        for tool_name in enabled_tools:
-            self._register_tool(tool_name, tool_config.get(tool_name, {}))
+        # Register each tool
+        for tool_name, tool_config in tool_configs.items():
+            self._register_tool(tool_name, tool_config)
     
     def _register_tool(self, tool_name: str, tool_config: Dict[str, Any]):
-        """Register a specific tool"""
-        # Import the tool class dynamically
+        """
+        Register a tool
+        
+        Args:
+            tool_name: Tool name
+            tool_config: Tool configuration
+        """
         try:
-            module_path = f"genai_agent.tools.{tool_name}"
-            module = __import__(module_path, fromlist=[''])
-            # Handle special case for tool names
-            if tool_name == 'scenex_tool':
-                tool_class = getattr(module, 'SceneXTool')
-            elif tool_name == 'svg_processor':
-                tool_class = getattr(module, 'SVGProcessorTool')
-            else:
-                tool_class = getattr(module, self._to_camel_case(tool_name) + 'Tool')
+            module_path = tool_config.get('module')
+            class_name = tool_config.get('class')
             
-            # Initialize tool with appropriate services
-            tool = tool_class(self.redis_bus, tool_config)
+            if not module_path or not class_name:
+                logger.warning(f"Invalid tool configuration for {tool_name}: missing module or class")
+                return
+            
+            # Import tool class
+            import importlib
+            module = importlib.import_module(module_path, package=__package__)
+            tool_class = getattr(module, class_name)
+            
+            # Create tool instance
+            tool = tool_class(
+                redis_bus=self.redis_bus,
+                config=tool_config.get('config', {})
+            )
             
             # Register tool
-            self.tool_registry.register_tool(tool_name, tool)
-            logger.info(f"Registered tool: {tool_name}")
+            self.tool_registry.register_tool(tool)
             
-        except (ImportError, AttributeError) as e:
-            logger.error(f"Failed to register tool {tool_name}: {str(e)}")
-    
-    @staticmethod
-    def _to_camel_case(snake_str: str) -> str:
-        """Convert snake_case to CamelCase"""
-        components = snake_str.split('_')
-        return ''.join(x.title() for x in components)
+            logger.info(f"Registered tool: {tool_name}")
+        except Exception as e:
+            logger.error(f"Error registering tool {tool_name}: {str(e)}")
     
     async def process_instruction(self, instruction: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
         """
-        Process a natural language instruction
+        Process a user instruction
         
         Args:
-            instruction: The user instruction to process
+            instruction: User instruction
             context: Optional context information
             
         Returns:
-            Processing result as a dictionary
+            Processing result
         """
         logger.info(f"Processing instruction: {instruction}")
         
-        # Start services if not already started
-        await self.redis_bus.start()
-        
-        # Update context if provided
-        if context:
-            for key, value in context.items():
-                await self.context_manager.update_context(key, value)
-        
-        # Get full context
-        full_context = await self.context_manager.get_full_context()
-        
-        # Plan execution
-        execution_plan = await self.task_manager.plan_execution(instruction, full_context)
-        
-        # Execute plan
-        result = await self.task_manager.execute_plan(execution_plan)
-        
-        logger.info("Instruction processing completed")
-        return result
+        try:
+            # Connect to Redis
+            await self.redis_bus.connect()
+            
+            # 1. Analyze instruction
+            task = await self._analyze_instruction(instruction, context)
+            
+            # 2. Plan execution
+            plan = await self._plan_execution(task)
+            
+            # 3. Execute plan
+            result = await self._execute_plan(plan)
+            
+            return result
+        except Exception as e:
+            logger.error(f"Error processing instruction: {str(e)}")
+            return {
+                'status': 'error',
+                'error': str(e)
+            }
     
-    async def cleanup(self):
-        """Clean up resources"""
-        await self.redis_bus.stop()
-        logger.info("GenAI Agent resources cleaned up")
+    async def _analyze_instruction(self, instruction: str, context: Optional[Dict[str, Any]] = None) -> Dict[str, Any]:
+        """
+        Analyze a user instruction
+        
+        Args:
+            instruction: User instruction
+            context: Optional context information
+            
+        Returns:
+            Structured task
+        """
+        logger.info("Analyzing instruction")
+        
+        # Use LLM to classify the instruction
+        task = await self.llm_service.classify_task(instruction)
+        
+        # Add original instruction
+        task['instruction'] = instruction
+        
+        # Add context if provided
+        if context:
+            task['context'] = context
+        
+        logger.info(f"Analyzed task: {task.get('task_type')}")
+        return task
+    
+    async def _plan_execution(self, task: Dict[str, Any]) -> List[Dict[str, Any]]:
+        """
+        Plan execution steps
+        
+        Args:
+            task: Structured task
+            
+        Returns:
+            Execution plan (list of steps)
+        """
+        logger.info(f"Planning execution for task: {task.get('task_type')}")
+        
+        # Get available tools
+        available_tools = self.tool_registry.get_tool_info()
+        
+        # Use LLM to plan execution
+        plan = await self.llm_service.plan_task_execution(task, available_tools)
+        
+        logger.info(f"Generated execution plan with {len(plan)} steps")
+        return plan
+    
+    async def _execute_plan(self, plan: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """
+        Execute a plan
+        
+        Args:
+            plan: Execution plan (list of steps)
+            
+        Returns:
+            Execution result
+        """
+        logger.info(f"Executing plan with {len(plan)} steps")
+        
+        results = []
+        
+        for i, step in enumerate(plan):
+            logger.info(f"Executing step {i+1}: {step.get('description', 'Unnamed step')}")
+            
+            # Get tool name and parameters
+            tool_name = step.get('tool_name')
+            parameters = step.get('parameters', {})
+            
+            try:
+                # Execute tool
+                step_result = await self.tool_registry.execute_tool(tool_name, parameters)
+                
+                # Store result
+                results.append({
+                    'step': i + 1,
+                    'description': step.get('description', 'Unnamed step'),
+                    'tool': tool_name,
+                    'result': step_result
+                })
+                
+                logger.info(f"Step {i+1} completed")
+            except Exception as e:
+                logger.error(f"Error executing step {i+1}: {str(e)}")
+                
+                # Store error
+                results.append({
+                    'step': i + 1,
+                    'description': step.get('description', 'Unnamed step'),
+                    'tool': tool_name,
+                    'error': str(e)
+                })
+                
+                # Continue with next step
+        
+        # Process results
+        return {
+            'status': 'success',
+            'steps_executed': len(results),
+            'results': results
+        }
+    
+    async def close(self):
+        """Close agent and release resources"""
+        # Disconnect from Redis
+        await self.redis_bus.disconnect()
+        
+        logger.info("Agent closed")

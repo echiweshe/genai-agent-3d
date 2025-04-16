@@ -39,27 +39,6 @@ class BlenderScriptTool(Tool):
         
         logger.info(f"Blender Script Tool initialized with Blender at {self.blender_path}")
     
-    async def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
-        """
-        Execute a Blender Python script
-        
-        Args:
-            parameters: Script parameters
-                - script: Python script to execute
-                - format: Output format (json, text)
-                
-        Returns:
-            Script execution result
-        """
-        # Get parameters
-        script = parameters.get('script', '')
-        output_format = parameters.get('format', 'json')
-        
-        if not script:
-            # For development/demo purposes - use a default script
-            script = self._get_default_script()
-            logger.warning("Using default script for development/demo")
-    
     def _get_default_script(self) -> str:
         """Get a default script for development/demo purposes"""
         return """
@@ -116,6 +95,27 @@ output = {
     "scene_description": "A simple scene with a red cube on a blue plane"
 }
 """
+    
+    async def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
+        """
+        Execute a Blender Python script
+        
+        Args:
+            parameters: Script parameters
+                - script: Python script to execute
+                - format: Output format (json, text)
+                
+        Returns:
+            Script execution result
+        """
+        # Get parameters
+        script = parameters.get('script', '')
+        output_format = parameters.get('format', 'json')
+        
+        if not script:
+            # For development/demo purposes - use a default script
+            script = self._get_default_script()
+            logger.warning("Using default script for development/demo")
         
         # Create temporary script file
         script_path = os.path.join(self.temp_dir, f"script_{uuid.uuid4().hex}.py")

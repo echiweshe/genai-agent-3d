@@ -1,167 +1,250 @@
 #!/usr/bin/env python3
 """
-Helper script to run the GenAI Agent with various commands
+Main entry point for GenAI Agent
 """
 
 import os
 import sys
+import logging
 import argparse
-import subprocess
 import asyncio
+import yaml
+import subprocess
+import importlib.util
+from pathlib import Path
 
-def start_redis():
-    """Start Redis using Docker if available"""
-    try:
-        # Check if Redis is already running
-        result = subprocess.run(
-            ["docker", "ps", "-q", "-f", "name=genai-redis"],
-            capture_output=True,
-            text=True
-        )
-        
-        if result.stdout.strip():
-            print("Redis is already running")
-            return True
-        
-        # Start Redis
-        print("Starting Redis...")
-        result = subprocess.run(
-            ["docker", "run", "-d", "--name", "genai-redis", "-p", "6379:6379", "redis"],
-            capture_output=True,
-            text=True
-        )
-        
-        if result.returncode == 0:
-            print("Redis started successfully")
-            return True
-        else:
-            print(f"Failed to start Redis: {result.stderr}")
-            return False
-    except Exception as e:
-        print(f"Error starting Redis: {str(e)}")
-        print("Please make sure Docker is installed and running")
-        return False
+# Add project root to Python path
+project_root = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, project_root)
 
-def manage_ollama(command, args=None):
-    """Manage Ollama using the helper script"""
-    ollama_script = os.path.join(os.path.dirname(__file__), "tools", "ollama_helper.py")
+from genai_agent.agent import GenAIAgent
+from genai_agent.tools.ollama_helper import OllamaHelper
+
+def load_config(config_path="config.yaml"):
+    """Load configuration from file"""
+    if not os.path.exists(config_path):
+        raise FileNotFoundError(f"Configuration file not found: {config_path}")
+        
+    with open(config_path, 'r') as f:
+        return yaml.safe_load(f)
+
+async def agent_shell(config):
+    """Interactive shell for agent"""
+    agent = GenAIAgent(config)
+    print("GenAI Agent Shell - Enter instructions or 'exit' to quit")
     
-    if command == "start":
-        subprocess.run([sys.executable, ollama_script, "start"])
-    elif command == "install":
-        subprocess.run([sys.executable, ollama_script, "install"])
-    elif command == "pull":
-        if not args or not args.model:
-            print("Error: Model name is required for 'ollama pull' command")
-            return
-        subprocess.run([sys.executable, ollama_script, "pull", args.model])
-    elif command == "list":
-        subprocess.run([sys.executable, ollama_script, "list"])
-    elif command == "test":
-        if not args or not args.model:
-            print("Error: Model name is required for 'ollama test' command")
-            return
+    while True:
+        try:
+            instruction = input("\n> ")
+            if instruction.lower() in ['exit', 'quit']:
+                break
+                
+            result = await agent.process_instruction(instruction)
             
-        prompt = args.prompt if args and args.prompt else "Hello, world!"
-        subprocess.run([sys.executable, ollama_script, "test", args.model, "--prompt", prompt])
-    else:
-        # Just run the script with no args to see status
-        subprocess.run([sys.executable, ollama_script])
+            # Check if result is string or dict
+            if isinstance(result, dict):
+                if result.get('status') == 'error':
+                    print(f"\nError: {result.get('error', 'Unknown error')}")
+                else:
+                    print("\nResult:\n")
+                    if 'message' in result:
+                        print(result['message'])
+                    else:
+                        import json
+                        print(json.dumps(result, indent=2))
+            else:
+                print("\nResult:\n")
+                print(result)
+        except KeyboardInterrupt:
+            print("\nExiting...")
+            break
+        except Exception as e:
+            print(f"Error: {str(e)}")
+    
+    # Close agent
+    await agent.close()
+    print("Exiting shell")
 
-def run_agent(command, args):
-    """Run the GenAI Agent with the specified command"""
-    if command == "interactive":
-        # Run in interactive mode
-        subprocess.run(["python", "main.py"])
-    elif command == "instruction":
-        # Run with a specific instruction
-        if not args.instruction:
-            print("Error: Instruction is required for 'instruction' command")
+def handle_ollama(args):
+    """Handle Ollama-related commands"""
+    if args.ollama_command == 'start':
+        print("Starting Ollama server...")
+        success = OllamaHelper.start_ollama()
+        if success:
+            print("Ollama server started successfully")
+        else:
+            print("Failed to start Ollama server")
+    
+    elif args.ollama_command == 'stop':
+        print("Stopping Ollama server...")
+        success = OllamaHelper.stop_ollama()
+        if success:
+            print("Ollama server stopped successfully")
+        else:
+            print("Failed to stop Ollama server")
+    
+    elif args.ollama_command == 'list':
+        print("Available Ollama models:")
+        models = OllamaHelper.list_models()
+        if models:
+            for model in models:
+                size_gb = model.get('size', 0) / (1024 * 1024 * 1024)
+                print(f"- {model.get('name')} (Size: {size_gb:.2f} GB)")
+        else:
+            print("No models found or Ollama server not running")
+    
+    elif args.ollama_command == 'pull':
+        if not args.model:
+            print("Error: Model name is required for 'pull' command")
             return
-        
-        subprocess.run(["python", "main.py", "--instruction", args.instruction])
-    elif command == "example":
-        # Run a specific example
-        if not args.example:
-            print("Error: Example name is required for 'example' command")
+        print(f"Pulling model {args.model}...")
+        success = OllamaHelper.pull_model(args.model)
+        if success:
+            print(f"Successfully pulled model: {args.model}")
+        else:
+            print(f"Failed to pull model: {args.model}")
+    
+    elif args.ollama_command == 'details':
+        if not args.model:
+            print("Error: Model name is required for 'details' command")
             return
-        
-        example_path = os.path.join("examples", f"{args.example}.py")
-        if not os.path.exists(example_path):
-            print(f"Error: Example '{args.example}' not found")
-            return
-        
-        subprocess.run(["python", example_path])
-    elif command == "test":
-        # Run tests
-        subprocess.run(["python", "-m", "unittest", "discover", "tests"])
-    elif command.startswith("ollama"):
-        # Handle Ollama commands
-        ollama_command = command.replace("ollama_", "")
-        manage_ollama(ollama_command, args)
+        details = OllamaHelper.get_model_details(args.model)
+        if details:
+            print(f"Details for model {args.model}:")
+            for key, value in details.items():
+                print(f"- {key}: {value}")
+        else:
+            print(f"No details found for model {args.model} or Ollama server not running")
+    
     else:
-        print(f"Unknown command: {command}")
+        print(f"Unknown Ollama command: {args.ollama_command}")
+
+async def run_command(args):
+    """Run a single instruction with the agent"""
+    config = load_config(args.config)
+    agent = GenAIAgent(config)
+    
+    try:
+        result = await agent.process_instruction(args.instruction)
+        
+        # Check if result is string or dict
+        if isinstance(result, dict):
+            if result.get('status') == 'error':
+                print(f"Error: {result.get('error', 'Unknown error')}")
+            else:
+                if 'message' in result:
+                    print(result['message'])
+                else:
+                    import json
+                    print(json.dumps(result, indent=2))
+        else:
+            print(result)
+    finally:
+        # Close agent
+        await agent.close()
+
+def run_examples(args):
+    """Run example scripts"""
+    examples_dir = os.path.join(project_root, 'examples')
+    
+    if args.example_name:
+        # Run specific example
+        example_path = os.path.join(examples_dir, f"{args.example_name}.py")
+        if not os.path.exists(example_path):
+            print(f"Example not found: {args.example_name}")
+            
+            # List available examples
+            print("\nAvailable examples:")
+            for file in os.listdir(examples_dir):
+                if file.endswith('.py') and file != '__init__.py':
+                    print(f"- {os.path.splitext(file)[0]}")
+            
+            return
+        
+        # Run the example
+        print(f"Running example: {args.example_name}")
+        exec_example(example_path)
+    
+    else:
+        # List available examples
+        print("Available examples:")
+        for file in os.listdir(examples_dir):
+            if file.endswith('.py') and file != '__init__.py':
+                print(f"- {os.path.splitext(file)[0]}")
+        
+        print("\nRun an example with: python run.py examples <example_name>")
+
+def exec_example(example_path):
+    """Execute an example script"""
+    try:
+        # Load the module
+        spec = importlib.util.spec_from_file_location("example", example_path)
+        example = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(example)
+        
+        # Run the example
+        if hasattr(example, 'main'):
+            if asyncio.iscoroutinefunction(example.main):
+                asyncio.run(example.main())
+            else:
+                example.main()
+        else:
+            print("Example does not have a main() function")
+    
+    except Exception as e:
+        print(f"Error running example: {str(e)}")
 
 def main():
-    """Main function"""
-    parser = argparse.ArgumentParser(description='Run the GenAI Agent')
-    subparsers = parser.add_subparsers(dest='command', help='Command to run')
+    """Main entry point"""
+    parser = argparse.ArgumentParser(description="GenAI Agent")
     
-    # Interactive mode
-    interactive_parser = subparsers.add_parser('interactive', help='Run in interactive mode')
+    # Create subcommands
+    subparsers = parser.add_subparsers(dest='command', help='Command to execute')
     
-    # Instruction mode
-    instruction_parser = subparsers.add_parser('instruction', help='Run with a specific instruction')
-    instruction_parser.add_argument('--instruction', type=str, help='Instruction to process')
+    # Shell command
+    shell_parser = subparsers.add_parser('shell', help='Start interactive shell')
+    shell_parser.add_argument('--config', type=str, default='config.yaml', help='Path to configuration file')
     
-    # Example mode
-    example_parser = subparsers.add_parser('example', help='Run a specific example')
-    example_parser.add_argument('--example', type=str, help='Example name to run (without .py)')
+    # Run command
+    run_parser = subparsers.add_parser('run', help='Run agent with instruction')
+    run_parser.add_argument('instruction', type=str, help='Instruction to process')
+    run_parser.add_argument('--config', type=str, default='config.yaml', help='Path to configuration file')
     
-    # Test mode
-    test_parser = subparsers.add_parser('test', help='Run tests')
+    # Ollama command
+    ollama_parser = subparsers.add_parser('ollama', help='Manage Ollama models')
+    ollama_parser.add_argument('ollama_command', choices=['start', 'stop', 'list', 'pull', 'details'], help='Ollama command')
+    ollama_parser.add_argument('model', nargs='?', help='Model name for pull/details command')
     
-    # Redis mode
-    redis_parser = subparsers.add_parser('redis', help='Start Redis')
+    # Examples command
+    examples_parser = subparsers.add_parser('examples', help='Run example scripts')
+    examples_parser.add_argument('example_name', nargs='?', help='Name of example to run')
     
-    # Ollama commands
-    ollama_parser = subparsers.add_parser('ollama', help='Manage Ollama')
-    ollama_subparsers = ollama_parser.add_subparsers(dest='ollama_command', help='Ollama command')
-    
-    # Ollama install
-    ollama_install_parser = ollama_subparsers.add_parser('install', help='Install Ollama')
-    
-    # Ollama start
-    ollama_start_parser = ollama_subparsers.add_parser('start', help='Start Ollama server')
-    
-    # Ollama list
-    ollama_list_parser = ollama_subparsers.add_parser('list', help='List available models')
-    
-    # Ollama pull
-    ollama_pull_parser = ollama_subparsers.add_parser('pull', help='Pull a model')
-    ollama_pull_parser.add_argument('model', type=str, help='Model name to pull')
-    
-    # Ollama test
-    ollama_test_parser = ollama_subparsers.add_parser('test', help='Test a model')
-    ollama_test_parser.add_argument('model', type=str, help='Model name to test')
-    ollama_test_parser.add_argument('--prompt', type=str, default='Hello, world!', help='Test prompt')
+    # Set up logging
+    logging.basicConfig(
+        level=logging.INFO,
+        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
+    )
     
     args = parser.parse_args()
     
-    if not args.command:
-        parser.print_help()
-        return
+    # Handle commands
+    if args.command == 'shell':
+        config = load_config(args.config)
+        asyncio.run(agent_shell(config))
     
-    if args.command == 'redis':
-        start_redis()
+    elif args.command == 'run':
+        asyncio.run(run_command(args))
+    
     elif args.command == 'ollama':
-        if not args.ollama_command:
-            # Just show Ollama status
-            manage_ollama(None)
-        else:
-            manage_ollama(args.ollama_command, args)
+        handle_ollama(args)
+    
+    elif args.command == 'examples':
+        run_examples(args)
+    
     else:
-        run_agent(args.command, args)
+        # Default to shell if no command specified
+        config = load_config('config.yaml')
+        asyncio.run(agent_shell(config))
 
 if __name__ == "__main__":
     main()

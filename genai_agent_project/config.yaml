@@ -1,25 +1,64 @@
 # GenAI Agent Configuration
-version: 0.1.0
 
-# Services configuration
-services:
-  redis:
-    host: localhost
-    port: 6379
+# General settings
+general:
+  debug: true
+  log_level: info
+  
+# Redis configuration
+redis:
+  host: localhost
+  port: 6379
+  password: null
+  db: 0
     
-  llm:
-    type: local  # local, api
-    provider: ollama  # ollama, openai, anthropic
-    model: llama3  # Model identifier
-    
-  blender:
-    path: C:\Program Files\Blender Foundation\Blender 4.2\blender.exe  # Path to Blender executable
-    addons_path: addons/    # Path to custom addons
-    
-# Tool configuration
+# LLM configuration
+llm:
+  type: local
+  provider: ollama
+  model: deepseek-coder-v2  # Change from deepseek-coder to deepseek-coder-v2
+ 
+# Blender configuration
+blender:
+  path: C:\Program Files\Blender Foundation\Blender 4.2\blender.exe  # Path to Blender executable
+  addons_path: addons/    # Path to custom addons
+  
+# Tools configuration
 tools:
-  enabled:
-    - blender_script
-    - scene_generator
-    - scenex_tool
-    - svg_processor
+  blender_script:
+    module: genai_agent.tools.blender_script
+    class: BlenderScriptTool
+    config:
+      blender_path: C:\Program Files\Blender Foundation\Blender 4.2\blender.exe
+  
+  scene_generator:
+    module: genai_agent.tools.scene_generator
+    class: SceneGeneratorTool
+    config: {}
+  
+  model_generator:
+    module: genai_agent.tools.model_generator
+    class: ModelGeneratorTool
+    config: {}
+  
+  svg_processor:
+    module: genai_agent.tools.svg_processor
+    class: SVGProcessorTool
+    config: {}
+  
+# Scene configuration
+scene:
+  default_camera:
+    position: [5, -5, 5]
+    rotation: [0.955, 0, 0.785]
+  
+  default_light:
+    type: SUN
+    position: [0, 0, 10]
+    energy: 1.0
+
+# Memory configuration
+memory:
+  storage_type: redis  # 'redis' or 'file'
+  file_path: data/memory/  # Only used if storage_type is 'file'
+  ttl: 3600  # Time to live in seconds
