@@ -31,6 +31,13 @@ class LLMService:
         self.api_key = config.get('api_key')
         self.api_url = self._get_api_url()
         
+        # Fallback models to try if the primary model is not available
+        self.fallback_models = [
+            "llama3.2:latest",
+            "deepseek-coder-v2:latest",
+            "deepseek-coder:latest"
+        ]
+        
         logger.info(f"LLM Service initialized with {self.provider} ({self.type})")
         
         # Check if Ollama is available
@@ -82,7 +89,7 @@ class LLMService:
             return []
             
         try:
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
+            async with aiohttp.ClientSession() as session:
                 async with session.get('http://localhost:11434/api/tags') as response:
                     if response.status == 200:
                         data = await response.json()
@@ -117,29 +124,6 @@ class LLMService:
             return await self._generate_local(prompt, context, parameters)
         else:
             return await self._generate_api(prompt, context, parameters)
-    
-    def _try_start_ollama(self) -> bool:
-        """Try to start Ollama server"""
-        logger.info("Attempting to start Ollama server...")
-        
-        try:
-            # Path to Ollama helper script
-            script_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            ollama_script = os.path.join(script_dir, "tools", "ollama_helper.py")
-            
-            if os.path.exists(ollama_script):
-                subprocess.run([sys.executable, ollama_script, "start"], 
-                              capture_output=True, timeout=10)
-                
-                # Check if it started successfully
-                if self.check_ollama_available():
-                    logger.info("Successfully started Ollama server")
-                    return True
-        except Exception as e:
-            logger.error(f"Error trying to start Ollama: {str(e)}")
-        
-        logger.warning("Failed to start Ollama server")
-        return False
     
     async def _generate_local(self, prompt: str, context: Optional[Dict[str, Any]] = None,
                              parameters: Optional[Dict[str, Any]] = None) -> str:
@@ -179,7 +163,7 @@ class LLMService:
         
         try:
             logger.debug(f"Sending request to {api_url} with model {self.model}")
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
+            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=30)) as session:
                 async with session.post(api_url, json=request_data) as response:
                     if response.status == 200:
                         response_data = await response.json()
@@ -200,20 +184,29 @@ class LLMService:
                             
                             if available_models:
                                 logger.info(f"Available models: {', '.join(available_models)}")
-                                # Try to find a similar model
-                                for available_model in available_models:
-                                    if self.model.lower() in available_model.lower() or available_model.lower() in self.model.lower():
-                                        logger.info(f"Found similar model: {available_model}. Will try using this instead.")
-                                        # Try the request again with the new model
-                                        request_data['model'] = available_model
+                                
+                                # Try to find a model that matches from our fallback list
+                                for fallback_model in self.fallback_models:
+                                    if fallback_model in available_models:
+                                        logger.info(f"Trying fallback model: {fallback_model}")
+                                        
+                                        # Update the model name for future requests
+                                        self.model = fallback_model
+                                        
+                                        # Try again with the new model
+                                        request_data['model'] = fallback_model
                                         try:
                                             async with session.post(api_url, json=request_data) as retry_response:
                                                 if retry_response.status == 200:
                                                     retry_data = await retry_response.json()
                                                     return retry_data.get('response', '')
-                                        except:
-                                            pass  # If this fails, continue to fallback
+                                                else:
+                                                    error_text = await retry_response.text()
+                                                    logger.warning(f"Fallback model {fallback_model} also failed: {error_text}")
+                                        except Exception as e:
+                                            logger.warning(f"Error with fallback model {fallback_model}: {str(e)}")
                             
+                        # Return error message
                         return f"Error: {response.status} - {error_text}"
         except Exception as e:
             error_msg = str(e)
@@ -225,6 +218,29 @@ class LLMService:
                 # Simulate a task planning response
                 return '[{"tool_name": "scene_generator", "parameters": {"description": "A simple scene with a red cube on a blue plane", "style": "basic"}, "description": "Generate a 3D scene with a red cube on a blue plane"}]'
             return "Simulated LLM response for development"
+    
+    def _try_start_ollama(self) -> bool:
+        """Try to start Ollama server"""
+        logger.info("Attempting to start Ollama server...")
+        
+        try:
+            # Path to Ollama helper script
+            script_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            ollama_script = os.path.join(script_dir, "tools", "ollama_helper.py")
+            
+            if os.path.exists(ollama_script):
+                subprocess.run([sys.executable, ollama_script, "start"], 
+                              capture_output=True, timeout=10)
+                
+                # Check if it started successfully
+                if self.check_ollama_available():
+                    logger.info("Successfully started Ollama server")
+                    return True
+        except Exception as e:
+            logger.error(f"Error trying to start Ollama: {str(e)}")
+        
+        logger.warning("Failed to start Ollama server")
+        return False
     
     async def _generate_api(self, prompt: str, context: Optional[Dict[str, Any]] = None,
                            parameters: Optional[Dict[str, Any]] = None) -> str:
@@ -279,7 +295,7 @@ class LLMService:
             }
         
         try:
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=60)) as session:
+            async with aiohttp.ClientSession() as session:
                 async with session.post(self.api_url, headers=headers, json=request_data) as response:
                     if response.status == 200:
                         response_data = await response.json()
@@ -356,6 +372,15 @@ JSON Response:"""
         
         response = await self.generate(prompt, parameters={'temperature': 0.2})
         
+        # Check for error response
+        if isinstance(response, str) and response.startswith("Error:"):
+            logger.warning(f"LLM error during task classification: {response}")
+            return {
+                "task_type": "scene_generation",
+                "description": instruction,
+                "parameters": {}
+            }
+        
         try:
             # Try to parse the response as JSON
             result = json.loads(response)
@@ -426,6 +451,18 @@ JSON Response:"""
         
         response = await self.generate(prompt, parameters={'temperature': 0.2})
         
+        # Check for error response
+        if isinstance(response, str) and response.startswith("Error:"):
+            logger.warning(f"LLM error during planning: {response}")
+            return [{
+                "tool_name": "scene_generator",
+                "parameters": {
+                    "description": task.get("description", "Create a simple 3D scene"),
+                    "style": "basic"
+                },
+                "description": f"Generate a scene based on the description: {task.get('description', 'Create a simple 3D scene')}"
+            }]
+        
         try:
             # Try to parse the response as JSON
             result = json.loads(response)
@@ -453,7 +490,7 @@ JSON Response:"""
             return [{
                 "tool_name": "scene_generator",
                 "parameters": {
-                    "description": task["description"]
+                    "description": task.get("description", "Create a simple 3D scene")
                 },
-                "description": f"Generate a scene based on the description: {task['description']}"
+                "description": f"Generate a scene based on the description: {task.get('description', 'Create a simple 3D scene')}"
             }]

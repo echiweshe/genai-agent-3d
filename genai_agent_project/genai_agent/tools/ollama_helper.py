@@ -52,7 +52,9 @@ class OllamaHelper:
                     ['start', '/b', 'ollama', 'serve'],
                     shell=True,
                     stdout=subprocess.PIPE,
-                    stderr=subprocess.PIPE
+                    stderr=subprocess.PIPE,
+                    encoding='utf-8',        # <-- FIX added
+                    errors='replace'         # <-- FIX added
                 )
             elif system == 'Darwin' or system == 'Linux':
                 # Use nohup to run in background
@@ -157,8 +159,11 @@ class OllamaHelper:
                 ['ollama', 'pull', model_name],
                 check=True,
                 capture_output=True,
-                text=True
+                text=True,
+                encoding='utf-8',
+                errors='replace'  # <-- FIX added
             )
+
             
             # Check output for success
             if "pulling manifest" in process.stdout.lower() or "pulling" in process.stdout.lower():
@@ -195,7 +200,9 @@ class OllamaHelper:
                 ['ollama', 'show', model_name],
                 check=True,
                 capture_output=True,
-                text=True
+                text=True,
+                encoding='utf-8',
+                errors='replace'  # <-- FIX added
             )
             
             # Parse the output

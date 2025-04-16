@@ -16,8 +16,8 @@ redis:
 llm:
   type: local
   provider: ollama
-  model: deepseek-coder-v2  # Change from deepseek-coder to deepseek-coder-v2
- 
+  model: llama3.2:latest  # Using the available model from your system
+  
 # Blender configuration
 blender:
   path: C:\Program Files\Blender Foundation\Blender 4.2\blender.exe  # Path to Blender executable

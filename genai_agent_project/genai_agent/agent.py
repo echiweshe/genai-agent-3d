@@ -126,8 +126,32 @@ class GenAIAgent:
             # 1. Analyze instruction
             task = await self._analyze_instruction(instruction, context)
             
+            # Handle situation where analysis failed or returned None
+            if not task:
+                # Use a default task focusing on scene generation since that's our specialty
+                logger.warning("Task analysis failed, using default scene generation task")
+                task = {
+                    'task_type': 'scene_generation',
+                    'description': instruction,
+                    'parameters': {},
+                    'instruction': instruction
+                }
+            
             # 2. Plan execution
             plan = await self._plan_execution(task)
+            
+            # Handle empty plans or planning failures
+            if not plan or len(plan) == 0:
+                logger.warning("Plan generation failed, using default plan")
+                # Create a default plan with a scene generation step
+                plan = [{
+                    'tool_name': 'scene_generator',
+                    'parameters': {
+                        'description': instruction,
+                        'style': 'realistic'
+                    },
+                    'description': f"Generate a scene based on the description: {instruction}"
+                }]
             
             # 3. Execute plan
             result = await self._execute_plan(plan)
@@ -153,18 +177,26 @@ class GenAIAgent:
         """
         logger.info("Analyzing instruction")
         
-        # Use LLM to classify the instruction
-        task = await self.llm_service.classify_task(instruction)
-        
-        # Add original instruction
-        task['instruction'] = instruction
-        
-        # Add context if provided
-        if context:
-            task['context'] = context
-        
-        logger.info(f"Analyzed task: {task.get('task_type')}")
-        return task
+        try:
+            # Use LLM to classify the instruction
+            task = await self.llm_service.classify_task(instruction)
+            
+            # Add original instruction
+            if task:
+                task['instruction'] = instruction
+                
+                # Add context if provided
+                if context:
+                    task['context'] = context
+                
+                logger.info(f"Analyzed task: {task.get('task_type')}")
+            else:
+                logger.warning("Task analysis returned None")
+                
+            return task
+        except Exception as e:
+            logger.error(f"Error analyzing instruction: {str(e)}")
+            return None
     
     async def _plan_execution(self, task: Dict[str, Any]) -> List[Dict[str, Any]]:
         """
@@ -178,14 +210,22 @@ class GenAIAgent:
         """
         logger.info(f"Planning execution for task: {task.get('task_type')}")
         
-        # Get available tools
-        available_tools = self.tool_registry.get_tool_info()
-        
-        # Use LLM to plan execution
-        plan = await self.llm_service.plan_task_execution(task, available_tools)
-        
-        logger.info(f"Generated execution plan with {len(plan)} steps")
-        return plan
+        try:
+            # Get available tools
+            available_tools = self.tool_registry.get_tool_info()
+            
+            # Use LLM to plan execution
+            plan = await self.llm_service.plan_task_execution(task, available_tools)
+            
+            if plan:
+                logger.info(f"Generated execution plan with {len(plan)} steps")
+            else:
+                logger.warning("Plan generation returned None or empty plan")
+                
+            return plan
+        except Exception as e:
+            logger.error(f"Error planning execution: {str(e)}")
+            return []
     
     async def _execute_plan(self, plan: List[Dict[str, Any]]) -> Dict[str, Any]:
         """
@@ -229,14 +269,21 @@ class GenAIAgent:
                     'step': i + 1,
                     'description': step.get('description', 'Unnamed step'),
                     'tool': tool_name,
-                    'error': str(e)
+                    'result': {
+                        'status': 'error',
+                        'error': str(e)
+                    }
                 })
-                
-                # Continue with next step
+        
+        # Look for any successful steps in the results
+        any_success = any(
+            result.get('result', {}).get('status') == 'success'
+            for result in results
+        )
         
         # Process results
         return {
-            'status': 'success',
+            'status': 'success' if any_success else 'error',
             'steps_executed': len(results),
             'results': results
         }
