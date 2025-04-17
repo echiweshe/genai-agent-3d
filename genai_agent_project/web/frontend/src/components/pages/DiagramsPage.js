@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Box, 
   Typography, 
@@ -18,9 +18,14 @@ import {
   Dialog,
   DialogTitle,
   DialogContent,
-  DialogActions
+  DialogActions,
+  IconButton
 } from '@mui/material';
-import { executeTool } from '../../services/api';
+import DeleteIcon from '@mui/icons-material/Delete';
+import VisibilityIcon from '@mui/icons-material/Visibility';
+import GetAppIcon from '@mui/icons-material/GetApp';
+import { executeTool, getDiagrams, deleteDiagram } from '../../services/api';
+import DiagramViewer from '../viewers/DiagramViewer';
 
 const DiagramsPage = ({ addNotification }) => {
   const [description, setDescription] = useState('');
@@ -29,6 +34,7 @@ const DiagramsPage = ({ addNotification }) => {
   const [diagramName, setDiagramName] = useState('');
   const [loading, setLoading] = useState(false);
   const [diagrams, setDiagrams] = useState([]);
+  const [loadingDiagrams, setLoadingDiagrams] = useState(true);
   const [viewDiagram, setViewDiagram] = useState(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   
@@ -45,6 +51,29 @@ const DiagramsPage = ({ addNotification }) => {
     { value: 'svg', label: 'SVG' },
     { value: 'dot', label: 'DOT (GraphViz)' }
   ];
+
+  // Load existing diagrams when component mounts
+  useEffect(() => {
+    const fetchDiagrams = async () => {
+      try {
+        setLoadingDiagrams(true);
+        const response = await getDiagrams();
+        if (response.status === 'success' && Array.isArray(response.diagrams)) {
+          setDiagrams(response.diagrams);
+        }
+      } catch (error) {
+        console.error('Error fetching diagrams:', error);
+        addNotification({
+          type: 'error',
+          message: `Error loading diagrams: ${error.message}`,
+        });
+      } finally {
+        setLoadingDiagrams(false);
+      }
+    };
+    
+    fetchDiagrams();
+  }, [addNotification]);
   
   const handleGenerateDiagram = async () => {
     if (!description.trim()) {
@@ -71,20 +100,19 @@ const DiagramsPage = ({ addNotification }) => {
       
       if (result.status === 'success') {
         // Add the diagram to the list
-        setDiagrams(prev => [
-          {
-            id: result.file_path || Date.now().toString(),
-            name: result.name,
-            description,
-            type: diagramType,
-            format,
-            path: result.file_path,
-            code: result.code,
-            date: new Date(),
-            result,
-          },
-          ...prev
-        ]);
+        const newDiagram = {
+          id: result.diagram_id || Date.now().toString(),
+          name: result.name || diagramName || `Diagram-${Date.now().toString().slice(-6)}`,
+          description,
+          type: diagramType,
+          format,
+          path: result.file_path,
+          code: result.code,
+          date: new Date(),
+          result,
+        };
+        
+        setDiagrams(prev => [newDiagram, ...prev]);
         
         // Show success notification
         addNotification({
@@ -122,12 +150,68 @@ const DiagramsPage = ({ addNotification }) => {
     setViewDiagram(null);
   };
   
-  const handleDeleteDiagram = (id) => {
-    setDiagrams(prev => prev.filter(diagram => diagram.id !== id));
+  const handleDeleteDiagram = async (id) => {
+    try {
+      // Delete the diagram via API
+      await deleteDiagram(id);
+      
+      // Filter out the deleted diagram
+      setDiagrams(prev => prev.filter(diagram => diagram.id !== id));
+      
+      addNotification({
+        type: 'success',
+        message: 'Diagram deleted successfully',
+      });
+    } catch (error) {
+      console.error('Error deleting diagram:', error);
+      addNotification({
+        type: 'error',
+        message: `Error deleting diagram: ${error.message}`,
+      });
+    }
+  };
+  
+  // Handle diagram export
+  const handleExportDiagram = (diagram) => {
+    if (!diagram || !diagram.code) {
+      addNotification({
+        type: 'error',
+        message: 'No diagram code available to export',
+      });
+      return;
+    }
+    
+    // Create a blob from the diagram code
+    const blob = new Blob([diagram.code], { type: 'text/plain' });
+    const url = URL.createObjectURL(blob);
+    
+    // Create a temporary link to download the file
+    const link = document.createElement('a');
+    link.href = url;
+    
+    // Determine file extension based on format
+    let extension = '';
+    if (diagram.format === 'mermaid') {
+      extension = '.mmd';
+    } else if (diagram.format === 'svg') {
+      extension = '.svg';
+    } else if (diagram.format === 'dot') {
+      extension = '.dot';
+    } else {
+      extension = '.txt';
+    }
+    
+    link.download = `${diagram.name || 'diagram'}${extension}`;
+    document.body.appendChild(link);
+    link.click();
+    
+    // Clean up
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
     
     addNotification({
-      type: 'info',
-      message: 'Diagram removed from list',
+      type: 'success',
+      message: 'Diagram exported successfully',
     });
   };
   
@@ -226,7 +310,11 @@ const DiagramsPage = ({ addNotification }) => {
       </Typography>
       
       <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
-        {diagrams.length === 0 ? (
+        {loadingDiagrams ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : diagrams.length === 0 ? (
           <Typography color="text.secondary">
             No diagrams generated yet. Use the form above to create your first diagram.
           </Typography>
@@ -240,7 +328,9 @@ const DiagramsPage = ({ addNotification }) => {
                       {diagram.name}
                     </Typography>
                     <Typography variant="caption" color="text.secondary" display="block">
-                      {diagram.date.toLocaleString()}
+                      {diagram.date instanceof Date 
+                        ? diagram.date.toLocaleString() 
+                        : new Date(diagram.date).toLocaleString()}
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                       {diagram.description}
@@ -255,12 +345,15 @@ const DiagramsPage = ({ addNotification }) => {
                     </Box>
                   </CardContent>
                   <CardActions>
-                    <Button size="small" onClick={() => handleViewDiagram(diagram)}>
-                      View
-                    </Button>
-                    <Button size="small" onClick={() => handleDeleteDiagram(diagram.id)}>
-                      Delete
-                    </Button>
+                    <IconButton onClick={() => handleViewDiagram(diagram)} title="View Diagram">
+                      <VisibilityIcon />
+                    </IconButton>
+                    <IconButton onClick={() => handleExportDiagram(diagram)} title="Export Diagram">
+                      <GetAppIcon />
+                    </IconButton>
+                    <IconButton onClick={() => handleDeleteDiagram(diagram.id)} title="Delete Diagram">
+                      <DeleteIcon />
+                    </IconButton>
                   </CardActions>
                 </Card>
               </Grid>
@@ -273,36 +366,28 @@ const DiagramsPage = ({ addNotification }) => {
       <Dialog 
         open={viewDialogOpen} 
         onClose={handleCloseViewDialog}
-        maxWidth="md"
+        maxWidth="lg"
         fullWidth
       >
         <DialogTitle>
           {viewDiagram?.name || 'Diagram'}
         </DialogTitle>
         
-        <DialogContent dividers>
+        <DialogContent sx={{ minHeight: '60vh', p: 0 }}>
           {viewDiagram && (
-            <Box>
-              <Typography variant="body2" paragraph>
-                {viewDiagram.description}
-              </Typography>
-              
-              <Box sx={{ p: 2, bgcolor: 'background.paper', borderRadius: 1, maxHeight: '60vh', overflow: 'auto' }}>
-                <Typography component="pre" sx={{ whiteSpace: 'pre-wrap' }}>
-                  {viewDiagram.code}
-                </Typography>
-              </Box>
-              
-              <Box sx={{ mt: 2 }}>
-                <Typography variant="caption" color="text.secondary">
-                  * Diagram rendering not implemented in this version
-                </Typography>
-              </Box>
-            </Box>
+            <DiagramViewer 
+              diagramCode={viewDiagram.code} 
+              diagramType={viewDiagram.format} 
+              width="100%" 
+              height="100%" 
+            />
           )}
         </DialogContent>
         
         <DialogActions>
+          <Button onClick={() => handleExportDiagram(viewDiagram)}>
+            Export
+          </Button>
           <Button onClick={handleCloseViewDialog}>
             Close
           </Button>
