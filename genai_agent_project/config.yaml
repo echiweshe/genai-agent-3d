@@ -40,12 +40,20 @@ tools:
   model_generator:
     module: genai_agent.tools.model_generator
     class: ModelGeneratorTool
-    config: {}
+    config:
+      output_dir: output/models/
   
   svg_processor:
     module: genai_agent.tools.svg_processor
     class: SVGProcessorTool
-    config: {}
+    config:
+      output_dir: output/svg/
+    
+  diagram_generator:
+    module: genai_agent.tools.diagram_generator
+    class: DiagramGeneratorTool
+    config:
+      output_dir: output/diagrams/
   
 # Scene configuration
 scene:

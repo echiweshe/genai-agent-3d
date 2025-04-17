@@ -1,0 +1,25 @@
+classDiagram
+    class Scene {
+        +String name
+        +addObject(Object obj)
+        +removeObject(Object obj)
+        +render()
+    }
+    class Object {
+        +String name
+        +Vector3 position
+        +Vector3 rotation
+        +Vector3 scale
+        +setPosition(Vector3 pos)
+        +setRotation(Vector3 rot)
+        +applyMaterial(Material mat)
+    }
+    class Camera {
+        +Vector3 position
+        +Vector3 target
+        +float fov
+        +setPosition(Vector3 pos)
+        +lookAt(Vector3 target)
+    }
+    Scene "1" *-- "many" Object
+    Scene "1" *-- "1..n" Camera

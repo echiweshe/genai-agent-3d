@@ -1,5 +1,5 @@
 """
-Model Generator Tool for creating 3D models from descriptions
+Enhanced Model Generator Tool for creating 3D models from descriptions with execution capability
 """
 
 import logging
@@ -19,7 +19,7 @@ class ModelGeneratorTool(Tool):
     """
     Tool for generating 3D models from descriptions
     
-    Uses LLM to generate scripts for procedural 3D model creation.
+    Uses LLM to generate scripts for procedural 3D model creation and executes them in Blender.
     """
     
     def __init__(self, redis_bus: RedisMessageBus, config: Dict[str, Any]):
@@ -32,7 +32,7 @@ class ModelGeneratorTool(Tool):
         """
         super().__init__(
             name="model_generator",
-            description="Generates 3D models from text descriptions"
+            description="Generates and executes 3D models from text descriptions"
         )
         
         self.redis_bus = redis_bus
@@ -46,8 +46,9 @@ class ModelGeneratorTool(Tool):
         # We'll need to get these services from the service registry
         self.llm_service = None
         self.asset_manager = None
+        self.blender_script_tool = None
         
-        logger.info("Model Generator Tool initialized")
+        logger.info("Enhanced Model Generator Tool initialized")
     
     async def _ensure_services(self):
         """Ensure required services are available"""
@@ -58,6 +59,18 @@ class ModelGeneratorTool(Tool):
         if self.asset_manager is None:
             # Register for Asset Manager service availability
             await self.redis_bus.subscribe('service:asset_manager:available', self._handle_asset_manager_available)
+            
+        if self.blender_script_tool is None:
+            # Find the BlenderScriptTool from the tool registry
+            try:
+                tool_registry_response = await self.redis_bus.call_rpc('tool:get', {'tool_name': 'blender_script'})
+                if 'error' not in tool_registry_response:
+                    self.blender_script_tool = tool_registry_response.get('tool')
+                    logger.info("Successfully connected to BlenderScriptTool")
+                else:
+                    logger.warning(f"Failed to get BlenderScriptTool: {tool_registry_response.get('error')}")
+            except Exception as e:
+                logger.error(f"Error finding BlenderScriptTool: {str(e)}")
     
     async def _handle_llm_service_available(self, message: Dict[str, Any]):
         """Handle LLM service availability"""
@@ -77,7 +90,7 @@ class ModelGeneratorTool(Tool):
     
     async def execute(self, parameters: Dict[str, Any]) -> Dict[str, Any]:
         """
-        Generate a 3D model from a description
+        Generate and execute a 3D model from a description
         
         Args:
             parameters: Model parameters
@@ -85,6 +98,8 @@ class ModelGeneratorTool(Tool):
                 - model_type: Type of model to generate (mesh, curve, etc.)
                 - style: Model style (realistic, cartoon, etc.)
                 - name: Model name
+                - execute: Whether to execute the generated script (default: True)
+                - save_blend: Whether to save the .blend file (default: True)
                 
         Returns:
             Model generation result
@@ -98,6 +113,8 @@ class ModelGeneratorTool(Tool):
             model_type = parameters.get('model_type', 'mesh')
             style = parameters.get('style', 'basic')
             name = parameters.get('name', f"Model_{uuid.uuid4().hex[:8]}")
+            execute = parameters.get('execute', True)
+            save_blend = parameters.get('save_blend', True)
             
             # If no description is provided but we're in an agent context
             # use a default description for demonstration
@@ -109,16 +126,14 @@ class ModelGeneratorTool(Tool):
             # Generate Blender script for the model
             script = await self._generate_model_script(description, model_type, style, name)
             
-            # Generate model file path
+            # Generate file paths
             model_file_path = os.path.join(self.output_dir, f"{name}.blend")
+            script_file_path = os.path.join(self.output_dir, f"{name}_script.py")
             
             # Store script in a file for reference
-            script_file_path = os.path.join(self.output_dir, f"{name}_script.py")
+            os.makedirs(os.path.dirname(script_file_path), exist_ok=True)
             with open(script_file_path, 'w') as f:
                 f.write(script)
-            
-            # TODO: Actually execute the script with Blender to create the model
-            # For now, we just return the script as proof of concept
             
             # Store the script as an asset if asset manager is available
             asset_id = None
@@ -131,18 +146,67 @@ class ModelGeneratorTool(Tool):
                     'type': 'model_script'
                 }, 'script')
             
-            return {
+            # Execute the script with Blender if requested
+            execution_result = None
+            if execute:
+                if self.blender_script_tool:
+                    logger.info(f"Executing model script for '{name}'")
+                    
+                    # Add save command to script if saving blend file
+                    if save_blend:
+                        save_command = f"""
+# Save the Blender file
+bpy.ops.wm.save_as_mainfile(filepath="{model_file_path}")
+                        """
+                        script += save_command
+                    
+                    # Execute the script using BlenderScriptTool
+                    execution_result = await self.blender_script_tool.execute({
+                        'script': script,
+                        'format': 'json'
+                    })
+                    
+                    if execution_result.get('status') == 'success':
+                        logger.info(f"Model script execution successful for '{name}'")
+                    else:
+                        logger.error(f"Model script execution failed for '{name}': {execution_result.get('error', 'Unknown error')}")
+                else:
+                    logger.warning("BlenderScriptTool not available for script execution")
+                    execution_result = {
+                        'status': 'error',
+                        'error': 'BlenderScriptTool not available'
+                    }
+            
+            # Return comprehensive results
+            result = {
                 'status': 'success',
                 'name': name,
                 'description': description,
                 'model_type': model_type,
                 'style': style,
                 'script_path': script_file_path,
-                'model_path': model_file_path,  # This would be the path if we actually created the model
+                'model_path': model_file_path if save_blend else None,
                 'asset_id': asset_id,
-                'message': f"Generated model script for '{name}'",
-                'script': script[:500] + "..." if len(script) > 500 else script  # Preview of the script
+                'message': f"Generated model script for '{name}'"
             }
+            
+            # Add script preview
+            if len(script) > 500:
+                result['script_preview'] = script[:500] + "..."
+            else:
+                result['script_preview'] = script
+                
+            # Add execution results if available
+            if execution_result:
+                result['execution'] = execution_result
+                
+                # Update overall status based on execution
+                if execution_result.get('status') == 'error':
+                    result['status'] = 'partial_success'
+                    result['message'] = f"Generated model script for '{name}' but execution failed"
+            
+            return result
+            
         except Exception as e:
             logger.error(f"Error generating model: {str(e)}")
             return {
@@ -209,10 +273,21 @@ Name: {name}
 
 Your script should:
 1. Create the model procedurally using Blender's Python API
-2. Add appropriate materials and textures
+2. Add appropriate materials and textures based on the description
 3. Set up proper naming for objects and materials
 4. Include comments explaining key parts of the code
 5. Be ready to run in Blender without modifications
+6. Generate output in the following format for status reporting:
+
+```python
+# At the end of your script, include this:
+output = {{
+    "status": "success",
+    "message": "Model '{name}' created successfully",
+    "objects_created": [list of object names created],
+    "model_description": "[brief description of what was created]"
+}}
+```
 
 Focus on creating a clean, efficient script that produces a high-quality model.
 Only return the Python code, no explanations needed.
@@ -253,7 +328,13 @@ sphere.name = "{name}"
 
 # Add a material
 mat = bpy.data.materials.new(name="{name}_Material")
-mat.diffuse_color = (0.8, 0.2, 0.2, 1.0)  # Red-ish color
+mat.use_nodes = True
+nodes = mat.node_tree.nodes
+bsdf = nodes.get('Principled BSDF')
+if bsdf:
+    bsdf.inputs['Base Color'].default_value = (0.8, 0.2, 0.2, 1.0)  # Red-ish color
+    bsdf.inputs['Metallic'].default_value = 0.2
+    bsdf.inputs['Roughness'].default_value = 0.3
 sphere.data.materials.append(mat)
 
 # Apply some modifiers
@@ -290,6 +371,14 @@ light.data.energy = 2.0
 # Set render settings for preview
 bpy.context.scene.render.engine = 'CYCLES'
 bpy.context.scene.cycles.samples = 128
+
+# Output for status reporting
+output = {{
+    "status": "success",
+    "message": "Model '{name}' created successfully",
+    "objects_created": ["{name}", "{name}_Armature", "Camera", "Sun"],
+    "model_description": "A red sphere with subdivision and displacement modifiers, rigged with a simple armature"
+}}
 
 print("Generated model: {name}")
 """
@@ -345,7 +434,13 @@ points[4].handle_right = (9, 0, 0)
 
 # Add a material
 mat = bpy.data.materials.new(name="{name}_Material")
-mat.diffuse_color = (0.2, 0.8, 0.2, 1.0)  # Green-ish color
+mat.use_nodes = True
+nodes = mat.node_tree.nodes
+bsdf = nodes.get('Principled BSDF')
+if bsdf:
+    bsdf.inputs['Base Color'].default_value = (0.2, 0.8, 0.2, 1.0)  # Green-ish color
+    bsdf.inputs['Metallic'].default_value = 0.5
+    bsdf.inputs['Roughness'].default_value = 0.2
 curve_obj.data.materials.append(mat)
 
 # Add a camera to render the model
@@ -362,6 +457,14 @@ light.data.energy = 2.0
 # Set render settings for preview
 bpy.context.scene.render.engine = 'CYCLES'
 bpy.context.scene.cycles.samples = 128
+
+# Output for status reporting
+output = {{
+    "status": "success",
+    "message": "Model '{name}' created successfully",
+    "objects_created": ["{name}", "Camera", "Sun"],
+    "model_description": "A curved 3D path with bevel applied and a green metallic material"
+}}
 
 print("Generated curve model: {name}")
 """
@@ -385,7 +488,13 @@ cube.name = "{name}"
 
 # Add a material
 mat = bpy.data.materials.new(name="{name}_Material")
-mat.diffuse_color = (0.5, 0.5, 0.8, 1.0)  # Blue-ish color
+mat.use_nodes = True
+nodes = mat.node_tree.nodes
+bsdf = nodes.get('Principled BSDF')
+if bsdf:
+    bsdf.inputs['Base Color'].default_value = (0.5, 0.5, 0.8, 1.0)  # Blue-ish color
+    bsdf.inputs['Metallic'].default_value = 0.1
+    bsdf.inputs['Roughness'].default_value = 0.5
 cube.data.materials.append(mat)
 
 # Add text note about the model
@@ -405,6 +514,14 @@ bpy.context.scene.camera = camera
 bpy.ops.object.light_add(type='SUN', radius=1, location=(0, 0, 5))
 light = bpy.context.active_object
 light.data.energy = 2.0
+
+# Output for status reporting
+output = {{
+    "status": "success",
+    "message": "Placeholder model '{name}' created successfully",
+    "objects_created": ["{name}", "{name}_Description", "Camera", "Sun"],
+    "model_description": "A placeholder blue cube with a text description"
+}}
 
 print("Generated placeholder model: {name}")
 """
