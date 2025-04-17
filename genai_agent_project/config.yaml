@@ -24,6 +24,31 @@ blender:
   path: C:\Program Files\Blender Foundation\Blender 4.2\blender.exe  # Path to Blender executable
   addons_path: addons/    # Path to custom addons
   
+# External integrations
+integrations:
+  blender_gpt:
+    enabled: false  # Set to true when BlenderGPT is installed
+    blender_path: C:\Program Files\Blender Foundation\Blender 4.2\blender.exe
+    blendergpt_path: C:\path\to\BlenderGPT  # Replace with actual path
+    api_key: null  # OpenAI API key if needed
+    model: gpt-4
+  
+  hunyuan_3d:
+    enabled: false  # Set to true when Hunyuan-3D is installed
+    hunyuan_path: C:\path\to\Hunyuan3D-2  # Replace with actual path
+    use_gpu: true
+    device: cuda:0
+    output_dir: output/hunyuan/
+    supported_formats: [obj, glb, gltf, usdz]
+  
+  trellis:
+    enabled: false  # Set to true when TRELLIS is installed
+    trellis_path: C:\path\to\TRELLIS  # Replace with actual path
+    api_key: null  # API key if needed
+    model: gpt-4
+    reasoning_examples_path: null
+    output_dir: output/trellis/
+  
 # Tools configuration
 tools:
   blender_script:
@@ -54,6 +79,39 @@ tools:
     class: DiagramGeneratorTool
     config:
       output_dir: output/diagrams/
+  
+  # Integration-based tools (disabled by default)
+  blender_gpt:
+    enabled: false
+    module: genai_agent.tools.blender_gpt_tool
+    class: BlenderGPTTool
+    config:
+      blender_path: C:\Program Files\Blender Foundation\Blender 4.2\blender.exe
+      blendergpt_path: C:\path\to\BlenderGPT  # Replace with actual path
+      api_key: null  # OpenAI API key if needed
+      model: gpt-4
+      output_dir: output/blendergpt/
+  
+  hunyuan_3d:
+    enabled: false
+    module: genai_agent.tools.hunyuan_3d_tool
+    class: Hunyuan3DTool
+    config:
+      hunyuan_path: C:\path\to\Hunyuan3D-2  # Replace with actual path
+      use_gpu: true
+      device: cuda:0
+      output_dir: output/hunyuan/
+      supported_formats: [obj, glb, gltf, usdz]
+  
+  trellis:
+    enabled: false
+    module: genai_agent.tools.trellis_tool
+    class: TrellisTool
+    config:
+      trellis_path: C:\path\to\TRELLIS  # Replace with actual path
+      api_key: null  # API key if needed
+      model: gpt-4
+      output_dir: output/trellis/
   
 # Scene configuration
 scene:
