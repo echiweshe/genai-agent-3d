@@ -1,0 +1,17 @@
+{
+  "name": "genai-agent-3d-e2e-tests",
+  "version": "0.1.0",
+  "private": true,
+  "description": "End-to-end tests for GenAI Agent 3D web interface",
+  "scripts": {
+    "test": "playwright test",
+    "test:headed": "playwright test --headed",
+    "test:ui": "playwright test --ui",
+    "report": "playwright show-report",
+    "install:browsers": "playwright install"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.40.0",
+    "dotenv": "^16.3.1"
+  }
+}

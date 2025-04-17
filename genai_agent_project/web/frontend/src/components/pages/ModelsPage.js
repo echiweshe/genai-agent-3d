@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Box, 
   Typography, 
@@ -16,11 +16,16 @@ import {
   CardContent,
   CardMedia,
   CardActions,
-  IconButton
+  IconButton,
+  Dialog,
+  DialogTitle,
+  DialogContent,
+  DialogActions
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import VisibilityIcon from '@mui/icons-material/Visibility';
-import { executeTool } from '../../services/api';
+import { executeTool, getModels, deleteModel } from '../../services/api';
+import ModelViewer from '../viewers/ModelViewer';
 
 const ModelsPage = ({ addNotification }) => {
   const [description, setDescription] = useState('');
@@ -29,6 +34,32 @@ const ModelsPage = ({ addNotification }) => {
   const [modelName, setModelName] = useState('');
   const [loading, setLoading] = useState(false);
   const [models, setModels] = useState([]);
+  const [loadingModels, setLoadingModels] = useState(true);
+  const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [selectedModel, setSelectedModel] = useState(null);
+  
+  // Load existing models when component mounts
+  useEffect(() => {
+    const fetchModels = async () => {
+      try {
+        setLoadingModels(true);
+        const response = await getModels();
+        if (response.status === 'success' && Array.isArray(response.models)) {
+          setModels(response.models);
+        }
+      } catch (error) {
+        console.error('Error fetching models:', error);
+        addNotification({
+          type: 'error',
+          message: `Error loading models: ${error.message}`,
+        });
+      } finally {
+        setLoadingModels(false);
+      }
+    };
+    
+    fetchModels();
+  }, [addNotification]);
   
   const handleGenerateModel = async () => {
     if (!description.trim()) {
@@ -57,19 +88,19 @@ const ModelsPage = ({ addNotification }) => {
       
       if (result.status === 'success' || result.status === 'partial_success') {
         // Add the model to the list
-        setModels(prev => [
-          {
-            id: result.model_path || Date.now().toString(),
-            name: result.name,
-            description,
-            type: modelType,
-            style,
-            path: result.model_path,
-            date: new Date(),
-            result,
-          },
-          ...prev
-        ]);
+        const newModel = {
+          id: result.model_id || Date.now().toString(),
+          name: result.name || modelName || `Model-${Date.now().toString().slice(-6)}`,
+          description,
+          type: modelType,
+          style,
+          path: result.model_path,
+          thumbnail: result.thumbnail_path,
+          date: new Date(),
+          result,
+        };
+        
+        setModels(prev => [newModel, ...prev]);
         
         // Show success notification
         addNotification({
@@ -97,23 +128,42 @@ const ModelsPage = ({ addNotification }) => {
     }
   };
   
-  const handleDelete = (id) => {
-    // Filter out the deleted model
-    setModels(prev => prev.filter(model => model.id !== id));
-    
-    addNotification({
-      type: 'info',
-      message: 'Model removed from list',
-    });
+  const handleDelete = async (id) => {
+    try {
+      // Delete the model via API
+      await deleteModel(id);
+      
+      // Filter out the deleted model
+      setModels(prev => prev.filter(model => model.id !== id));
+      
+      addNotification({
+        type: 'success',
+        message: 'Model deleted successfully',
+      });
+    } catch (error) {
+      console.error('Error deleting model:', error);
+      addNotification({
+        type: 'error',
+        message: `Error deleting model: ${error.message}`,
+      });
+    }
   };
   
   const handleView = (model) => {
-    // For now, just show a notification
-    // In a real implementation, this would open a 3D viewer
-    addNotification({
-      type: 'info',
-      message: `Viewing model: ${model.name}`,
-    });
+    setSelectedModel(model);
+    setViewDialogOpen(true);
+  };
+  
+  const handleCloseViewDialog = () => {
+    setViewDialogOpen(false);
+    setSelectedModel(null);
+  };
+  
+  const getModelFileType = (model) => {
+    if (!model || !model.path) return 'gltf';
+    
+    const extension = model.path.split('.').pop()?.toLowerCase();
+    return ['gltf', 'glb', 'obj', 'stl', 'ply'].includes(extension) ? extension : 'gltf';
   };
   
   return (
@@ -209,7 +259,11 @@ const ModelsPage = ({ addNotification }) => {
       </Typography>
       
       <Box sx={{ flexGrow: 1, overflow: 'auto' }}>
-        {models.length === 0 ? (
+        {loadingModels ? (
+          <Box sx={{ display: 'flex', justifyContent: 'center', p: 4 }}>
+            <CircularProgress />
+          </Box>
+        ) : models.length === 0 ? (
           <Typography color="text.secondary">
             No models generated yet. Use the form above to create your first model.
           </Typography>
@@ -226,36 +280,48 @@ const ModelsPage = ({ addNotification }) => {
                       display: 'flex',
                       alignItems: 'center',
                       justifyContent: 'center',
+                      position: 'relative',
+                      overflow: 'hidden',
                     }}
                   >
-                    <Typography color="text.secondary">
-                      [Model Preview]
-                    </Typography>
+                    {model.thumbnail ? (
+                      <img 
+                        src={model.thumbnail} 
+                        alt={model.name} 
+                        style={{ width: '100%', height: '100%', objectFit: 'cover' }} 
+                      />
+                    ) : (
+                      <Typography color="text.secondary">
+                        [Model Preview]
+                      </Typography>
+                    )}
                   </CardMedia>
                   <CardContent>
                     <Typography variant="h6" noWrap>
                       {model.name}
                     </Typography>
                     <Typography variant="caption" color="text.secondary" display="block">
-                      {model.date.toLocaleString()}
+                      {model.date instanceof Date 
+                        ? model.date.toLocaleString() 
+                        : new Date(model.date).toLocaleString()}
                     </Typography>
                     <Typography variant="body2" color="text.secondary" sx={{ mt: 1 }}>
                       {model.description}
                     </Typography>
                     <Box sx={{ mt: 1, display: 'flex', gap: 1 }}>
                       <Typography variant="caption" color="text.secondary">
-                        Type: {model.type}
+                        Type: {model.type || modelType}
                       </Typography>
                       <Typography variant="caption" color="text.secondary">
-                        Style: {model.style}
+                        Style: {model.style || style}
                       </Typography>
                     </Box>
                   </CardContent>
                   <CardActions>
-                    <IconButton onClick={() => handleView(model)}>
+                    <IconButton onClick={() => handleView(model)} title="View Model">
                       <VisibilityIcon />
                     </IconButton>
-                    <IconButton onClick={() => handleDelete(model.id)}>
+                    <IconButton onClick={() => handleDelete(model.id)} title="Delete Model">
                       <DeleteIcon />
                     </IconButton>
                   </CardActions>
@@ -265,6 +331,29 @@ const ModelsPage = ({ addNotification }) => {
           </Grid>
         )}
       </Box>
+      
+      {/* Model Viewer Dialog */}
+      <Dialog 
+        open={viewDialogOpen} 
+        onClose={handleCloseViewDialog} 
+        maxWidth="lg" 
+        fullWidth
+      >
+        <DialogTitle>{selectedModel?.name}</DialogTitle>
+        <DialogContent sx={{ height: '70vh', p: 0 }}>
+          {selectedModel && (
+            <ModelViewer 
+              modelUrl={selectedModel.path} 
+              modelType={getModelFileType(selectedModel)} 
+              width="100%" 
+              height="100%" 
+            />
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={handleCloseViewDialog}>Close</Button>
+        </DialogActions>
+      </Dialog>
     </Box>
   );
 };
