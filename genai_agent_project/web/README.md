@@ -14,21 +14,23 @@ The web UI consists of two main components:
 ### Backend
 
 1. Navigate to the backend directory:
+
    ```bash
    cd web/backend
    ```
-
 2. Install dependencies:
+
    ```bash
    pip install -r requirements.txt
    ```
-
 3. Run the server:
+
    ```bash
    python run_server.py
    ```
 
    By default, the server runs on port 8000. You can specify a different port:
+
    ```bash
    python run_server.py --port 8080
    ```
@@ -36,16 +38,17 @@ The web UI consists of two main components:
 ### Frontend
 
 1. Navigate to the frontend directory:
+
    ```bash
    cd web/frontend
    ```
-
 2. Install dependencies:
+
    ```bash
    npm install
    ```
-
 3. Start the development server:
+
    ```bash
    npm start
    ```
@@ -75,18 +78,19 @@ The application uses WebSockets for real-time updates during long-running operat
 For production deployment:
 
 1. Build the frontend:
+
    ```bash
    cd web/frontend
    npm run build
    ```
-
 2. Serve the static files from the backend:
+
    ```bash
    # Copy the build directory to the backend's static folder
    cp -r web/frontend/build web/backend/static
    ```
-
 3. Run the backend with a production ASGI server:
+
    ```bash
    cd web/backend
    uvicorn main:app --host 0.0.0.0 --port 8000
