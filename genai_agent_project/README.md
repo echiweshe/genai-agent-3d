@@ -42,12 +42,14 @@ The system follows a microservices architecture with the following components:
 ### Setup
 
 1. Clone the repository:
+
 ```
 git clone https://github.com/yourusername/genai-agent-3d.git
 cd genai-agent-3d
 ```
 
 2. Create and activate a virtual environment:
+
 ```
 python -m venv venv
 source venv/bin/activate  # Linux/Mac
@@ -55,6 +57,7 @@ venv\Scripts\activate     # Windows
 ```
 
 3. Install dependencies:
+
 ```
 pip install -r requirements.txt
 ```
@@ -64,13 +67,14 @@ pip install -r requirements.txt
 ### Ollama Setup (Local LLMs)
 
 1. Install Ollama from [ollama.ai](https://ollama.ai).
-
 2. Start the Ollama server:
+
 ```
 python run.py ollama start
 ```
 
 3. Pull the required models:
+
 ```
 python run.py ollama pull deepseek-coder
 ```
@@ -118,6 +122,7 @@ python run.py examples test_deepseek_coder
 ### Agent Core
 
 The central orchestration component that coordinates services and tools. It processes user instructions by:
+
 1. Analyzing the instruction to determine the task
 2. Planning the task execution using available tools
 3. Executing the plan and coordinating between services
@@ -125,12 +130,14 @@ The central orchestration component that coordinates services and tools. It proc
 ### LLM Service
 
 Provides integration with language models, with support for:
+
 - Local models via Ollama (deepseek-coder, llama3, etc.)
 - API-based models (OpenAI, Anthropic)
 
 ### Tool Registry
 
 Manages the available tools and their discovery. Current tools include:
+
 - **Blender Script Tool**: Executes Python scripts in Blender
 - **Scene Generator Tool**: Creates 3D scenes from descriptions
 - **Model Generator Tool**: Generates 3D models from descriptions
@@ -139,6 +146,7 @@ Manages the available tools and their discovery. Current tools include:
 ### Scene Manager
 
 Manages the creation, modification, and retrieval of 3D scenes. Features include:
+
 - Scene creation and storage
 - Object management
 - Export to various formats
@@ -164,17 +172,17 @@ async def main():
     # Load configuration
     with open('config.yaml', 'r') as f:
         config = yaml.safe_load(f)
-    
+  
     # Initialize agent
     agent = GenAIAgent(config)
-    
+  
     # Process instruction
     result = await agent.process_instruction(
         "Create a scene with a red cube on a blue plane"
     )
-    
+  
     print(result)
-    
+  
     # Close agent
     await agent.close()
 
@@ -193,13 +201,13 @@ async def main():
     # Initialize Redis bus
     redis_bus = RedisMessageBus({'host': 'localhost', 'port': 6379})
     await redis_bus.connect()
-    
+  
     # Initialize Blender script tool
     blender_tool = BlenderScriptTool(
         redis_bus,
         {'blender_path': 'C:\\Program Files\\Blender Foundation\\Blender 4.2\\blender.exe'}
     )
-    
+  
     # Execute Blender script
     result = await blender_tool.execute({
         'script': """
@@ -213,9 +221,9 @@ bpy.ops.object.delete()
 bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))
         """
     })
-    
+  
     print(result)
-    
+  
     # Close Redis connection
     await redis_bus.disconnect()
 
@@ -230,16 +238,19 @@ if __name__ == "__main__":
 If you encounter issues with Ollama models:
 
 1. Check available models:
+
 ```
 python run.py ollama list
 ```
 
 2. If a model is not found, pull it:
+
 ```
 python run.py ollama pull deepseek-coder
 ```
 
 3. Check model details:
+
 ```
 python run.py ollama details deepseek-coder
 ```
