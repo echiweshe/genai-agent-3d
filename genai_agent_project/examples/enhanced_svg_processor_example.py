@@ -2,7 +2,10 @@
 Example of using the Enhanced SVG Processor Tool with advanced operations
 """
 
+import sys
 import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import asyncio
 import yaml
 import logging
