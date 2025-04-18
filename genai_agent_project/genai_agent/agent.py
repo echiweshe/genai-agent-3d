@@ -12,6 +12,8 @@ from genai_agent.services.redis_bus import RedisMessageBus
 from genai_agent.services.scene_manager import SceneManager
 from genai_agent.tools.registry import ToolRegistry
 
+from genai_agent.services.memory import MemoryService
+
 logger = logging.getLogger(__name__)
 
 class GenAIAgent:

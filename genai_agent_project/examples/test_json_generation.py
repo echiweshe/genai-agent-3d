@@ -2,13 +2,15 @@
 Test script to verify improved JSON generation and extraction
 """
 
-import os
 import sys
+import os
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+
 import asyncio
 import yaml
 import json
 import logging
-import os, yaml
+import yaml
 from env_loader import get_config
 
 config = get_config()
