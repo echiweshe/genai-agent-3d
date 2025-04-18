@@ -1,262 +1,337 @@
 #!/usr/bin/env python
 """
-Utility to set up external integrations for GenAI Agent 3D
+Automated Setup Integrations Script for GenAI Agent 3D
+
+This script automatically clones and sets up the required third-party integrations:
+- BlenderGPT (https://github.com/gd3kr/BlenderGPT)
+- Hunyuan-3D 2.0 (https://github.com/Tencent/Hunyuan3D-2)
+- TRELLIS (https://github.com/microsoft/TRELLIS)
+- Ollama (already configured but verified)
+
+No user input is required. The script will:
+1. Check prerequisites
+2. Create the integration directories
+3. Clone the repositories
+4. Set up each integration
+5. Update the config.yaml file with the correct paths
 """
 
 import os
 import sys
-import yaml
-import argparse
 import subprocess
 import shutil
+import yaml
+import platform
+import logging
 from pathlib import Path
 
-def check_integration(integration_name, path):
-    """Check if an integration is available at the specified path"""
-    if not path or not os.path.exists(path):
-        print(f"[ERROR] {integration_name} path not found: {path}")
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(levelname)s - %(message)s',
+    handlers=[logging.StreamHandler()]
+)
+logger = logging.getLogger("setup_integrations")
+
+# Project root directory (parent of genai_agent_project)
+PROJECT_ROOT = Path(os.path.abspath(os.path.dirname(__file__))).parent
+INTEGRATIONS_DIR = PROJECT_ROOT / "integrations"
+CONFIG_FILE = os.path.join(os.path.dirname(__file__), "config.yaml")
+
+# Repository URLs
+REPOS = {
+    "blendergpt": "https://github.com/gd3kr/BlenderGPT.git",
+    "hunyuan3d": "https://github.com/Tencent/Hunyuan3D-2.git",
+    "trellis": "https://github.com/microsoft/TRELLIS.git"
+}
+
+def check_prerequisites():
+    """Check that all required tools are installed."""
+    logger.info("Checking prerequisites...")
+    
+    # Check git
+    try:
+        subprocess.run(["git", "--version"], check=True, capture_output=True)
+        logger.info("✅ Git is installed")
+    except (subprocess.SubprocessError, FileNotFoundError):
+        logger.error("❌ Git is not installed or not in PATH")
         return False
     
-    if integration_name == "BlenderGPT":
-        addon_path = os.path.join(path, 'blendergpt_addon.py')
-        if not os.path.exists(addon_path):
-            print(f"[ERROR] BlenderGPT addon not found at {addon_path}")
-            return False
+    # Check python
+    try:
+        subprocess.run([sys.executable, "--version"], check=True, capture_output=True)
+        logger.info(f"✅ Python is installed: {sys.version.split()[0]}")
+    except subprocess.SubprocessError:
+        logger.error("❌ Python check failed")
+        return False
     
-    elif integration_name == "Hunyuan-3D":
-        main_script = os.path.join(path, 'run.py')
-        if not os.path.exists(main_script):
-            print(f"[ERROR] Hunyuan-3D main script not found at {main_script}")
-            return False
+    # Check pip
+    try:
+        subprocess.run([sys.executable, "-m", "pip", "--version"], check=True, capture_output=True)
+        logger.info("✅ Pip is installed")
+    except subprocess.SubprocessError:
+        logger.error("❌ Pip is not installed")
+        return False
     
-    elif integration_name == "TRELLIS":
-        init_file = os.path.join(path, 'trellis', '__init__.py')
-        if not os.path.exists(init_file):
-            print(f"[ERROR] TRELLIS module not found at {path}")
-            return False
+    # Check npm for frontend dependencies
+    try:
+        subprocess.run(["npm", "--version"], check=True, capture_output=True)
+        logger.info("✅ NPM is installed")
+    except (subprocess.SubprocessError, FileNotFoundError):
+        logger.warning("⚠️ NPM is not installed - might be needed for some integrations")
     
-    print(f"[OK] {integration_name} found at {path}")
+    # Check if config.yaml exists
+    if not os.path.exists(CONFIG_FILE):
+        logger.error(f"❌ Config file not found at {CONFIG_FILE}")
+        return False
+    
     return True
 
-def update_config(config_path, updates):
-    """Update the configuration file with the provided updates"""
-    if not os.path.exists(config_path):
-        print(f"[ERROR] Configuration file not found: {config_path}")
-        return False
-    
-    # Read the configuration
-    with open(config_path, 'r') as f:
-        config = yaml.safe_load(f)
-    
-    # Apply updates
-    for section, section_updates in updates.items():
-        if section not in config:
-            config[section] = {}
-        
-        for key, value in section_updates.items():
-            if key not in config[section]:
-                config[section][key] = {}
-                
-            config[section][key].update(value)
-    
-    # Write back the updated configuration
-    with open(config_path, 'w') as f:
-        yaml.dump(config, f, default_flow_style=False)
-    
-    print(f"[OK] Configuration updated: {config_path}")
+def create_directories():
+    """Create necessary directories for integrations."""
+    logger.info("Creating integration directories...")
+    os.makedirs(INTEGRATIONS_DIR, exist_ok=True)
+    logger.info(f"✅ Created integrations directory at {INTEGRATIONS_DIR}")
     return True
 
-def setup_blendergpt(args, config_path):
-    """Set up BlenderGPT integration"""
-    # Check if BlenderGPT is installed
-    if not check_integration("BlenderGPT", args.blendergpt_path):
+def clone_repository(repo_name):
+    """Clone a repository to the integrations directory."""
+    repo_url = REPOS[repo_name]
+    target_dir = INTEGRATIONS_DIR / repo_name
+    
+    # Remove directory if it exists
+    if os.path.exists(target_dir):
+        logger.info(f"Removing existing directory: {target_dir}")
+        shutil.rmtree(target_dir)
+    
+    logger.info(f"Cloning {repo_name} from {repo_url}...")
+    try:
+        subprocess.run(
+            ["git", "clone", repo_url, str(target_dir)], 
+            check=True, 
+            capture_output=True
+        )
+        logger.info(f"✅ Successfully cloned {repo_name}")
+        return True
+    except subprocess.SubprocessError as e:
+        logger.error(f"❌ Failed to clone {repo_name}: {e}")
+        logger.error(f"STDOUT: {e.stdout.decode() if hasattr(e, 'stdout') and e.stdout else 'N/A'}")
+        logger.error(f"STDERR: {e.stderr.decode() if hasattr(e, 'stderr') and e.stderr else 'N/A'}")
         return False
-    
-    # Check if Blender is installed
-    if not os.path.exists(args.blender_path):
-        print(f"[ERROR] Blender not found: {args.blender_path}")
-        return False
-    
-    # Update configuration
-    updates = {
-        'integrations': {
-            'blender_gpt': {
-                'enabled': True,
-                'blender_path': args.blender_path,
-                'blendergpt_path': args.blendergpt_path,
-                'api_key': args.api_key,
-                'model': args.model or 'gpt-4'
-            }
-        },
-        'tools': {
-            'blender_gpt': {
-                'enabled': True,
-                'config': {
-                    'blender_path': args.blender_path,
-                    'blendergpt_path': args.blendergpt_path,
-                    'api_key': args.api_key,
-                    'model': args.model or 'gpt-4',
-                    'output_dir': 'output/blendergpt/'
-                }
-            }
-        }
-    }
-    
-    return update_config(config_path, updates)
 
-def setup_hunyuan3d(args, config_path):
-    """Set up Hunyuan-3D integration"""
-    # Check if Hunyuan-3D is installed
-    if not check_integration("Hunyuan-3D", args.hunyuan_path):
+def setup_blendergpt():
+    """Set up BlenderGPT integration."""
+    repo_dir = INTEGRATIONS_DIR / "blendergpt"
+    
+    if not os.path.exists(repo_dir):
+        logger.error(f"❌ BlenderGPT directory not found at {repo_dir}")
         return False
     
-    # Check if GPU is available if use_gpu is True
-    if args.use_gpu:
+    logger.info("Setting up BlenderGPT...")
+    
+    # Install requirements
+    requirements_file = repo_dir / "requirements.txt"
+    if os.path.exists(requirements_file):
+        logger.info("Installing BlenderGPT requirements...")
         try:
-            # Try to import torch to check CUDA availability
-            import torch
-            if not torch.cuda.is_available():
-                print("[WARNING] CUDA is not available, but use_gpu is set to True")
-                if not args.force:
-                    print("Use --force to proceed anyway")
-                    return False
-        except ImportError:
-            print("[WARNING] PyTorch is not installed, cannot check CUDA availability")
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "-r", str(requirements_file)],
+                check=True,
+                capture_output=True
+            )
+            logger.info("✅ Installed BlenderGPT requirements")
+        except subprocess.SubprocessError as e:
+            logger.error(f"❌ Failed to install BlenderGPT requirements: {e}")
+            logger.warning("Continuing anyway...")
     
-    # Update configuration
-    updates = {
-        'integrations': {
-            'hunyuan_3d': {
-                'enabled': True,
-                'hunyuan_path': args.hunyuan_path,
-                'use_gpu': args.use_gpu,
-                'device': args.device or 'cuda:0',
-                'output_dir': 'output/hunyuan/',
-                'supported_formats': ['obj', 'glb', 'gltf', 'usdz']
-            }
-        },
-        'tools': {
-            'hunyuan_3d': {
-                'enabled': True,
-                'config': {
-                    'hunyuan_path': args.hunyuan_path,
-                    'use_gpu': args.use_gpu,
-                    'device': args.device or 'cuda:0',
-                    'output_dir': 'output/hunyuan/',
-                    'supported_formats': ['obj', 'glb', 'gltf', 'usdz']
-                }
-            }
-        }
+    # Create a simple adapter config file
+    adapter_config = {
+        "blendergpt_path": str(repo_dir),
+        "adapter_version": "1.0.0"
     }
     
-    return update_config(config_path, updates)
+    with open(repo_dir / "adapter_config.json", "w") as f:
+        import json
+        json.dump(adapter_config, f, indent=2)
+    
+    logger.info("✅ BlenderGPT setup completed")
+    return True
 
-def setup_trellis(args, config_path):
-    """Set up TRELLIS integration"""
-    # Check if TRELLIS is installed
-    if not check_integration("TRELLIS", args.trellis_path):
+def setup_hunyuan3d():
+    """Set up Hunyuan-3D integration."""
+    repo_dir = INTEGRATIONS_DIR / "hunyuan3d"
+    
+    if not os.path.exists(repo_dir):
+        logger.error(f"❌ Hunyuan-3D directory not found at {repo_dir}")
         return False
     
-    # Update configuration
-    updates = {
-        'integrations': {
-            'trellis': {
-                'enabled': True,
-                'trellis_path': args.trellis_path,
-                'api_key': args.api_key,
-                'model': args.model or 'gpt-4',
-                'reasoning_examples_path': args.examples_path,
-                'output_dir': 'output/trellis/'
-            }
-        },
-        'tools': {
-            'trellis': {
-                'enabled': True,
-                'config': {
-                    'trellis_path': args.trellis_path,
-                    'api_key': args.api_key,
-                    'model': args.model or 'gpt-4',
-                    'reasoning_examples_path': args.examples_path,
-                    'output_dir': 'output/trellis/'
-                }
-            }
-        }
+    logger.info("Setting up Hunyuan-3D...")
+    
+    # Install requirements if present
+    requirements_file = repo_dir / "requirements.txt"
+    if os.path.exists(requirements_file):
+        logger.info("Installing Hunyuan-3D requirements...")
+        try:
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "-r", str(requirements_file)],
+                check=True,
+                capture_output=True
+            )
+            logger.info("✅ Installed Hunyuan-3D requirements")
+        except subprocess.SubprocessError as e:
+            logger.error(f"❌ Failed to install Hunyuan-3D requirements: {e}")
+            logger.warning("Continuing anyway...")
+    
+    # Create adapter config file
+    adapter_config = {
+        "hunyuan3d_path": str(repo_dir),
+        "adapter_version": "1.0.0"
     }
     
-    return update_config(config_path, updates)
+    with open(repo_dir / "adapter_config.json", "w") as f:
+        import json
+        json.dump(adapter_config, f, indent=2)
+    
+    logger.info("✅ Hunyuan-3D setup completed")
+    return True
+
+def setup_trellis():
+    """Set up TRELLIS integration."""
+    repo_dir = INTEGRATIONS_DIR / "trellis"
+    
+    if not os.path.exists(repo_dir):
+        logger.error(f"❌ TRELLIS directory not found at {repo_dir}")
+        return False
+    
+    logger.info("Setting up TRELLIS...")
+    
+    # Install requirements if present
+    requirements_file = repo_dir / "requirements.txt"
+    if os.path.exists(requirements_file):
+        logger.info("Installing TRELLIS requirements...")
+        try:
+            subprocess.run(
+                [sys.executable, "-m", "pip", "install", "-r", str(requirements_file)],
+                check=True,
+                capture_output=True
+            )
+            logger.info("✅ Installed TRELLIS requirements")
+        except subprocess.SubprocessError as e:
+            logger.error(f"❌ Failed to install TRELLIS requirements: {e}")
+            logger.warning("Continuing anyway...")
+    
+    # Create adapter config file
+    adapter_config = {
+        "trellis_path": str(repo_dir),
+        "adapter_version": "1.0.0"
+    }
+    
+    with open(repo_dir / "adapter_config.json", "w") as f:
+        import json
+        json.dump(adapter_config, f, indent=2)
+    
+    logger.info("✅ TRELLIS setup completed")
+    return True
+
+def check_ollama():
+    """Verify Ollama installation."""
+    logger.info("Checking Ollama installation...")
+    
+    try:
+        result = subprocess.run(
+            ["ollama", "list"], 
+            check=True, 
+            capture_output=True,
+            text=True
+        )
+        logger.info("✅ Ollama is installed and running")
+        logger.info(f"Available models: {result.stdout.strip()}")
+        return True
+    except (subprocess.SubprocessError, FileNotFoundError) as e:
+        logger.error(f"❌ Ollama check failed: {e}")
+        logger.error("Please install Ollama from https://github.com/ollama/ollama")
+        return False
+
+def update_config():
+    """Update config.yaml with integration paths."""
+    logger.info(f"Updating configuration file: {CONFIG_FILE}")
+    
+    try:
+        with open(CONFIG_FILE, 'r') as f:
+            config = yaml.safe_load(f)
+        
+        # Update integration paths
+        if 'integrations' not in config:
+            config['integrations'] = {}
+        
+        config['integrations']['blendergpt'] = {
+            'path': str(INTEGRATIONS_DIR / "blendergpt")
+        }
+        config['integrations']['hunyuan3d'] = {
+            'path': str(INTEGRATIONS_DIR / "hunyuan3d")
+        }
+        config['integrations']['trellis'] = {
+            'path': str(INTEGRATIONS_DIR / "trellis")
+        }
+        
+        # Backup the original config
+        backup_file = f"{CONFIG_FILE}.bak"
+        shutil.copy2(CONFIG_FILE, backup_file)
+        logger.info(f"Created backup of config file at {backup_file}")
+        
+        # Write updated config
+        with open(CONFIG_FILE, 'w') as f:
+            yaml.dump(config, f, default_flow_style=False)
+        
+        logger.info("✅ Configuration file updated")
+        return True
+    except Exception as e:
+        logger.error(f"❌ Failed to update config file: {e}")
+        return False
 
 def main():
-    parser = argparse.ArgumentParser(description='Set up external integrations for GenAI Agent 3D')
+    """Main function to run the setup process."""
+    logger.info("===== GenAI Agent 3D - Automated Integrations Setup =====")
+    logger.info(f"Project root: {PROJECT_ROOT}")
+    logger.info(f"Integrations directory: {INTEGRATIONS_DIR}")
     
-    # General arguments
-    parser.add_argument('--config', default='config.yaml',
-                        help='Path to configuration file (default: config.yaml)')
-    parser.add_argument('--force', action='store_true',
-                        help='Force setup even if checks fail')
+    # Check prerequisites
+    if not check_prerequisites():
+        logger.error("Failed prerequisite checks. Exiting.")
+        sys.exit(1)
     
-    # Integration-specific subparsers
-    subparsers = parser.add_subparsers(dest='integration',
-                                       help='Integration to set up')
+    # Create directories
+    if not create_directories():
+        logger.error("Failed to create directories. Exiting.")
+        sys.exit(1)
     
-    # BlenderGPT
-    blendergpt_parser = subparsers.add_parser('blendergpt',
-                                             help='Set up BlenderGPT integration')
-    blendergpt_parser.add_argument('--blendergpt-path', required=True,
-                                 help='Path to BlenderGPT installation')
-    blendergpt_parser.add_argument('--blender-path',
-                                  default=r'C:\Program Files\Blender Foundation\Blender 4.2\blender.exe',
-                                  help='Path to Blender executable')
-    blendergpt_parser.add_argument('--api-key',
-                                  help='OpenAI API key')
-    blendergpt_parser.add_argument('--model', default='gpt-4',
-                                  help='Model to use (default: gpt-4)')
+    # Clone repositories
+    success = True
+    for repo_name in REPOS:
+        if not clone_repository(repo_name):
+            logger.error(f"Failed to clone {repo_name}")
+            success = False
     
-    # Hunyuan-3D
-    hunyuan_parser = subparsers.add_parser('hunyuan3d',
-                                          help='Set up Hunyuan-3D integration')
-    hunyuan_parser.add_argument('--hunyuan-path', required=True,
-                               help='Path to Hunyuan-3D installation')
-    hunyuan_parser.add_argument('--use-gpu', action='store_true',
-                               help='Use GPU for Hunyuan-3D')
-    hunyuan_parser.add_argument('--device', default='cuda:0',
-                               help='GPU device to use (default: cuda:0)')
+    if not success:
+        logger.error("Some repositories failed to clone.")
+        response = input("Continue anyway? (y/n): ")
+        if response.lower() != 'y':
+            sys.exit(1)
     
-    # TRELLIS
-    trellis_parser = subparsers.add_parser('trellis',
-                                          help='Set up TRELLIS integration')
-    trellis_parser.add_argument('--trellis-path', required=True,
-                               help='Path to TRELLIS installation')
-    trellis_parser.add_argument('--api-key',
-                               help='API key for language models')
-    trellis_parser.add_argument('--model', default='gpt-4',
-                               help='Model to use (default: gpt-4)')
-    trellis_parser.add_argument('--examples-path',
-                               help='Path to reasoning examples')
+    # Setup each integration
+    setup_blendergpt()
+    setup_hunyuan3d()
+    setup_trellis()
+    check_ollama()
     
-    # Parse arguments
-    args = parser.parse_args()
+    # Update config
+    update_config()
     
-    if not args.integration:
-        parser.print_help()
-        return 1
-    
-    # Set up the selected integration
-    if args.integration == 'blendergpt':
-        success = setup_blendergpt(args, args.config)
-    elif args.integration == 'hunyuan3d':
-        success = setup_hunyuan3d(args, args.config)
-    elif args.integration == 'trellis':
-        success = setup_trellis(args, args.config)
-    else:
-        print(f"[ERROR] Unknown integration: {args.integration}")
-        return 1
-    
-    if success:
-        print(f"[SUCCESS] {args.integration} integration set up successfully")
-        return 0
-    else:
-        print(f"[FAILURE] Failed to set up {args.integration} integration")
-        return 1
+    logger.info("===== Integrations Setup Complete =====")
+    logger.info(f"BlenderGPT: {INTEGRATIONS_DIR / 'blendergpt'}")
+    logger.info(f"Hunyuan-3D: {INTEGRATIONS_DIR / 'hunyuan3d'}")
+    logger.info(f"TRELLIS: {INTEGRATIONS_DIR / 'trellis'}")
+    logger.info("To test the setup, run: python run.py examples integrations_example")
 
 if __name__ == "__main__":
-    sys.exit(main())
+    main()

@@ -24,3 +24,5 @@ pytest-cov>=4.1.0
 # Optional dependencies for specific tools
 svglib>=1.5.1       # For SVG processing
 lxml>=4.9.3         # For XML/SVG parsing
+
+psutil
