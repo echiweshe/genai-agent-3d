@@ -29,18 +29,7 @@ integrations:
   trellis:
     path: C:\ZB_Share\Labs\src\CluadeMCP\genai-agent-3d\integrations\trellis
 llm:
-  model: llama3
-  prompt_templates:
-    json_generation: '
-
-      You are a JSON generation assistant. Generate only valid, well-formed JSON with
-      no explanations.
-
-      The JSON should be properly formatted and include closing brackets.
-
-      Do not include markdown code blocks or any text outside the JSON.
-
-      '
+  model: deepseek-coder:latest
   provider: ollama
   type: local
 memory:
