@@ -1,67 +1,58 @@
-#!/usr/bin/env python3
+#!/usr/bin/env python
 """
-Script to create the directory structure for the GenAI Agent project
+Create Output Directories for GenAI Agent 3D
+
+This script creates the necessary output directories based on
+environment variables defined in .env
 """
 
 import os
 import sys
+from pathlib import Path
 
-def create_directory(path):
-    """Create directory if it doesn't exist"""
-    if not os.path.exists(path):
-        os.makedirs(path)
-        print(f"Created directory: {path}")
-    else:
-        print(f"Directory already exists: {path}")
+# Import our environment variable loader
+try:
+    from env_loader import get_env, get_config
+except ImportError:
+    print("Error: env_loader.py not found. Please create this file first.")
+    sys.exit(1)
 
-def create_file(path, content=""):
-    """Create file with content if it doesn't exist"""
-    directory = os.path.dirname(path)
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-        
-    with open(path, 'w') as f:
-        f.write(content)
-    print(f"Created file: {path}")
+def create_directories():
+    """Create all required output directories"""
+    # Get configuration
+    config = get_config()
+    
+    # Get the base output directory
+    output_dir = config['paths']['output_dir']
+    
+    # List of output directories to create
+    directories = [
+        output_dir,
+        config['paths']['blendergpt_output_dir'],
+        config['paths']['diagrams_output_dir'],
+        config['paths']['hunyuan_output_dir'],
+        config['paths']['models_output_dir'],
+        config['paths']['scenes_output_dir'],
+        config['paths']['svg_output_dir'],
+        config['paths']['trellis_output_dir']
+    ]
+    
+    # Create each directory
+    for directory in directories:
+        os.makedirs(directory, exist_ok=True)
+        print(f"Created directory: {directory}")
+    
+    return directories
 
 def main():
-    """Create directory structure"""
-    # Base directories
-    base_dir = os.path.dirname(os.path.abspath(__file__))
+    """Main function"""
+    print("Creating output directories for GenAI Agent 3D...")
     
-    # Core package
-    create_directory(os.path.join(base_dir, "genai_agent"))
-    create_file(os.path.join(base_dir, "genai_agent", "__init__.py"), 
-                '"""GenAI Agent - 3D scene generation framework"""\n\n__version__ = "0.1.0"\n')
+    # Create the directories
+    directories = create_directories()
     
-    # Services
-    create_directory(os.path.join(base_dir, "genai_agent", "services"))
-    create_file(os.path.join(base_dir, "genai_agent", "services", "__init__.py"))
-    
-    # Tools
-    create_directory(os.path.join(base_dir, "genai_agent", "tools"))
-    create_file(os.path.join(base_dir, "genai_agent", "tools", "__init__.py"))
-    
-    # Models
-    create_directory(os.path.join(base_dir, "genai_agent", "models"))
-    create_file(os.path.join(base_dir, "genai_agent", "models", "__init__.py"))
-    
-    # Utils
-    create_directory(os.path.join(base_dir, "genai_agent", "utils"))
-    create_file(os.path.join(base_dir, "genai_agent", "utils", "__init__.py"))
-    
-    # Examples
-    create_directory(os.path.join(base_dir, "examples"))
-    create_file(os.path.join(base_dir, "examples", "__init__.py"))
-    
-    # Tests
-    create_directory(os.path.join(base_dir, "tests"))
-    create_file(os.path.join(base_dir, "tests", "__init__.py"))
-    
-    # Addons
-    create_directory(os.path.join(base_dir, "addons"))
-    
-    print("Directory structure created successfully!")
+    print(f"\nSuccessfully created {len(directories)} directories.")
+    print("Now scenes will be properly saved in output/scenes directory.")
 
 if __name__ == "__main__":
     main()

@@ -11,6 +11,8 @@ sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')
 
 from genai_agent.agent import GenAIAgent
 from genai_agent.config import load_config
+from env_loader import get_env, get_config
+
 
 async def main():
     """

@@ -5,6 +5,8 @@ Script to check the exact name of available Ollama models
 import subprocess
 import sys
 import json
+from env_loader import get_env, get_config
+
 
 def main():
     print("Checking Ollama installation and models...")

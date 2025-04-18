@@ -14,6 +14,8 @@ sys.path.insert(0, project_root)
 
 from genai_agent.agent import GenAIAgent
 from genai_agent.services.llm import LLMService
+from env_loader import get_env, get_config
+
 
 # Configure logging
 logging.basicConfig(
@@ -29,7 +31,7 @@ async def test_direct_llm_generation():
     llm_service = LLMService({
         'type': 'local',
         'provider': 'ollama',
-        'model': 'deepseek-coder'
+        'model': get_env("LLM_MODEL", "deepseek-coder")
     })
     
     # Simple test prompt for Blender code generation

@@ -11,6 +11,8 @@ from pathlib import Path
 
 from genai_agent.agent import GenAIAgent
 from genai_agent.config import load_config
+from env_loader import get_env, get_config
+
 
 # Setup logging
 logging.basicConfig(

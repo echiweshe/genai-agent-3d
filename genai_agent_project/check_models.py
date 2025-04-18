@@ -1,5 +1,7 @@
 import requests
 import json
+from env_loader import get_env, get_config
+
 
 print("Checking available Ollama models...")
 try:

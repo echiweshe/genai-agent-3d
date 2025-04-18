@@ -8,6 +8,8 @@ import sys
 import subprocess
 import logging
 import time
+from env_loader import get_env, get_config
+
 
 # Configure logging
 logging.basicConfig(

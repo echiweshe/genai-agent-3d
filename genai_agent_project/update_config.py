@@ -11,6 +11,8 @@ This script updates the config.yaml file to:
 import yaml
 import os
 import sys
+from env_loader import get_env, get_config
+
 
 # Define paths
 PROJECT_ROOT = os.path.abspath(os.path.dirname(__file__))
