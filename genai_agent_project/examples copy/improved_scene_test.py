@@ -55,9 +55,9 @@ async def main():
         
         # ✅ Prioritize lighter and known-working models
         preferred_models = [
+            "deepseek-coder:latest",    # ✅ First choice (smallest & most stable)
             "llama3.2:latest",          # Second choice (2.0 GB)
             "llama3:latest",            # Third choice (4.7 GB)
-            "deepseek-coder:latest",    # ✅ First choice (smallest & most stable)
             "deepseek-coder-v2:latest"  # Largest fallback (8.9 GB)
         ]
         

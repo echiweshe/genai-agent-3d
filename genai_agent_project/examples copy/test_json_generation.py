@@ -8,12 +8,6 @@ import asyncio
 import yaml
 import json
 import logging
-import os, yaml
-from env_loader import get_config
-
-config = get_config()
-llm_model = config['llm']['model']
-
 from typing import List, Dict, Any
 
 # Configure logging - use DEBUG level to see detailed logs
@@ -38,7 +32,7 @@ def get_effective_llm_model(config: Dict[str, Any]) -> str:
     """Determine the effective LLM model from env or config"""
     env_model = get_env("LLM_MODEL")
     yaml_model = config.get("llm", {}).get("model")
-    llm_model = env_model or yaml_model or llm_model
+    llm_model = env_model or yaml_model or "llama3"
 
     # Validate against Ollama
     models = OllamaHelper.list_models()
