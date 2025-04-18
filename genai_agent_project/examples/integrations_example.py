@@ -12,6 +12,8 @@ from genai_agent.services.redis_bus import RedisMessageBus
 from genai_agent.tools.blender_gpt_tool import BlenderGPTTool
 from genai_agent.tools.hunyuan_3d_tool import Hunyuan3DTool
 from genai_agent.tools.trellis_tool import TrellisTool
+from env_loader import get_env, get_config
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

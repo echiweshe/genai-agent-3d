@@ -283,6 +283,8 @@ project_root = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, project_root)
 
 from genai_agent.agent import GenAIAgent
+from env_loader import get_env, get_config
+
 
 def load_config(config_path="config.yaml"):
     \"\"\"Load configuration from file\"\"\"

@@ -36,7 +36,7 @@ class Hunyuan3DIntegration(BaseIntegration):
     
     def _initialize(self):
         """Initialize the Hunyuan-3D integration and check if it's available"""
-        self.hunyuan_path = self.config.get('path')
+        self.hunyuan_path = self.config.get('hunyuan_path')
         
         if not self.hunyuan_path:
             raise ValueError("Hunyuan-3D path is required")

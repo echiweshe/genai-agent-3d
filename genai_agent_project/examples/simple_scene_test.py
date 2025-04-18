@@ -13,6 +13,8 @@ project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 sys.path.insert(0, project_root)
 
 from genai_agent.agent import GenAIAgent
+from env_loader import get_env, get_config
+
 
 async def main():
     """Test creating a simple scene"""

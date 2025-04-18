@@ -16,6 +16,8 @@ from genai_agent.agent import GenAIAgent
 from genai_agent.services.llm import LLMService
 from genai_agent.tools.scene_generator import SceneGeneratorTool
 from genai_agent.services.redis_bus import RedisMessageBus
+from env_loader import get_env, get_config
+
 
 # Configure logging
 logging.basicConfig(
@@ -38,7 +40,7 @@ async def test_direct_scene_generation():
     llm_service = LLMService({
         'type': 'local',
         'provider': 'ollama',
-        'model': 'deepseek-coder'
+        'model': get_env("LLM_MODEL", "deepseek-coder")
     })
     
     # Manually set the LLM service

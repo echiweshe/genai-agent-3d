@@ -6,6 +6,8 @@ Script to clean up duplicate files and optimize the project structure
 import os
 import shutil
 import logging
+from env_loader import get_env, get_config
+
 
 # Configure logging
 logging.basicConfig(

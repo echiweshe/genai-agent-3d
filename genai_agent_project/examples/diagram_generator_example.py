@@ -9,6 +9,8 @@ import logging
 
 from genai_agent.services.redis_bus import RedisMessageBus
 from genai_agent.tools.diagram_generator import DiagramGeneratorTool
+from env_loader import get_env, get_config
+
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')

@@ -26,6 +26,8 @@ from genai_agent.services.redis_bus import RedisMessageBus
 from genai_agent.services.llm import LLMService
 from genai_agent.tools.scene_generator import SceneGeneratorTool
 from genai_agent.tools.ollama_helper import OllamaHelper
+from env_loader import get_env, get_config
+
 
 async def main():
     """Test direct scene generation with SceneGeneratorTool"""

@@ -13,6 +13,8 @@ from genai_agent.agent import GenAIAgent
 from genai_agent.config import load_config
 from genai_agent.tools.svg_processor import SVGProcessorTool
 from genai_agent.services.redis_bus import RedisMessageBus
+from env_loader import get_env, get_config
+
 
 # Sample SVG content
 SAMPLE_SVG = """

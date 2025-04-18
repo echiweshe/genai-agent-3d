@@ -9,6 +9,8 @@ import subprocess
 import logging
 import time
 import asyncio
+from env_loader import get_env, get_config
+
 
 # Configure logging
 logging.basicConfig(

@@ -37,7 +37,7 @@ class BlenderGPTIntegration(BaseIntegration):
     def _initialize(self):
         """Initialize the BlenderGPT integration and check if it's available"""
         self.blender_path = self.config.get('blender_path')
-        self.blendergpt_path = self.config.get('path')
+        self.blendergpt_path = self.config.get('blendergpt_path')
         self.api_key = self.config.get('api_key')
         self.model = self.config.get('model', 'gpt-4')
         
