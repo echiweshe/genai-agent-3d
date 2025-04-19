@@ -27,3 +27,6 @@ lxml>=4.9.3         # For XML/SVG parsing
 
 psutil
 aioredis
+
+# For Belnder SceneX Addon
+pydantic-core 
