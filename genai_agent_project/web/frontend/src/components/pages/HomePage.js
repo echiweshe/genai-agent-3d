@@ -11,8 +11,7 @@ import {
   Divider,
   List,
   ListItem,
-  ListItemText,
-  ListItemIcon
+  ListItemText
 } from '@mui/material';
 import ViewInArIcon from '@mui/icons-material/ViewInAr';
 import SceneIcon from '@mui/icons-material/Landscape';

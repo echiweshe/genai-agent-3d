@@ -251,6 +251,12 @@ node run_tests.js --component-only
 node run_tests.js --all --coverage
 
 # Review the coverage report in the terminal output
+
+# You can now run the WebSocket tests using either:
+
+node run_tests.js --unit-only 
+.\run_simple_tests.bat 
+
 ```
 
 ## End-to-End Testing

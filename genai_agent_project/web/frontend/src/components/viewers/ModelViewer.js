@@ -17,14 +17,16 @@ const ModelViewer = ({ modelUrl, modelType = 'gltf', width = '100%', height = '4
     if (!containerRef.current || !modelUrl) return;
     
     let renderer, scene, camera, controls, model;
+    // Store container reference to avoid lint warnings
+    const container = containerRef.current;
     
     // Initialize renderer
     renderer = new THREE.WebGLRenderer({ antialias: true, alpha: true });
     renderer.setPixelRatio(window.devicePixelRatio);
-    renderer.setSize(containerRef.current.clientWidth, containerRef.current.clientHeight);
+    renderer.setSize(container.clientWidth, container.clientHeight);
     renderer.shadowMap.enabled = true;
     renderer.shadowMap.type = THREE.PCFSoftShadowMap;
-    containerRef.current.appendChild(renderer.domElement);
+    container.appendChild(renderer.domElement);
     
     // Initialize scene
     scene = new THREE.Scene();
@@ -33,7 +35,7 @@ const ModelViewer = ({ modelUrl, modelType = 'gltf', width = '100%', height = '4
     // Initialize camera
     camera = new THREE.PerspectiveCamera(
       45,
-      containerRef.current.clientWidth / containerRef.current.clientHeight,
+      container.clientWidth / container.clientHeight,
       0.1,
       1000
     );
@@ -321,10 +323,10 @@ const ModelViewer = ({ modelUrl, modelType = 'gltf', width = '100%', height = '4
     
     // Handle window resize
     const handleResize = () => {
-      if (!containerRef.current) return;
+      if (!container) return;
       
-      const width = containerRef.current.clientWidth;
-      const height = containerRef.current.clientHeight;
+      const width = container.clientWidth;
+      const height = container.clientHeight;
       
       camera.aspect = width / height;
       camera.updateProjectionMatrix();
@@ -347,8 +349,11 @@ const ModelViewer = ({ modelUrl, modelType = 'gltf', width = '100%', height = '4
     return () => {
       window.removeEventListener('resize', handleResize);
       
-      if (containerRef.current && renderer.domElement) {
-        containerRef.current.removeChild(renderer.domElement);
+      // Store ref to DOM element to avoid the React Hook exhaustive-deps warning
+      const container = containerRef.current;
+      
+      if (container && renderer.domElement) {
+        container.removeChild(renderer.domElement);
       }
       
       // Dispose resources

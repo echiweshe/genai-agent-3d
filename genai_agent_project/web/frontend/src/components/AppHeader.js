@@ -25,7 +25,7 @@ import CheckCircleIcon from '@mui/icons-material/CheckCircle';
 import InfoIcon from '@mui/icons-material/Info';
 import WarningIcon from '@mui/icons-material/Warning';
 
-const AppHeader = ({ toggleDarkMode, darkMode, toggleSidebar, notifications, removeNotification }) => {
+const AppHeader = ({ toggleDarkMode, darkMode, toggleSidebar, notifications, removeNotification, setNotifications }) => {
   const [notificationMenuAnchor, setNotificationMenuAnchor] = useState(null);
   const [notificationsDrawerOpen, setNotificationsDrawerOpen] = useState(false);
   

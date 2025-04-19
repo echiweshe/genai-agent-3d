@@ -145,7 +145,141 @@ export const getResultFileUrl = (filename) => {
   return `${api.defaults.baseURL}/results/${filename}`;
 };
 
-export default {
+/**
+ * Get available models
+ * @returns {Promise} Promise with available models
+ */
+export const getModels = async () => {
+  try {
+    const response = await api.get('/models');
+    return response.data;
+  } catch (error) {
+    console.error('Error getting models:', error);
+    throw error;
+  }
+};
+
+/**
+ * Delete a model
+ * @param {string} modelId - The ID of the model to delete
+ * @returns {Promise} Promise with deletion result
+ */
+export const deleteModel = async (modelId) => {
+  try {
+    const response = await api.delete(`/models/${modelId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting model:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get available scenes
+ * @returns {Promise} Promise with available scenes
+ */
+export const getScenes = async () => {
+  try {
+    const response = await api.get('/scenes');
+    return response.data;
+  } catch (error) {
+    console.error('Error getting scenes:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get a specific scene
+ * @param {string} sceneId - The ID of the scene to get
+ * @returns {Promise} Promise with scene data
+ */
+export const getScene = async (sceneId) => {
+  try {
+    const response = await api.get(`/scenes/${sceneId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error getting scene:', error);
+    throw error;
+  }
+};
+
+/**
+ * Create a new scene
+ * @param {Object} sceneData - The scene data
+ * @returns {Promise} Promise with creation result
+ */
+export const createScene = async (sceneData) => {
+  try {
+    const response = await api.post('/scenes', sceneData);
+    return response.data;
+  } catch (error) {
+    console.error('Error creating scene:', error);
+    throw error;
+  }
+};
+
+/**
+ * Update a scene
+ * @param {string} sceneId - The ID of the scene to update
+ * @param {Object} sceneData - The updated scene data
+ * @returns {Promise} Promise with update result
+ */
+export const updateScene = async (sceneId, sceneData) => {
+  try {
+    const response = await api.put(`/scenes/${sceneId}`, sceneData);
+    return response.data;
+  } catch (error) {
+    console.error('Error updating scene:', error);
+    throw error;
+  }
+};
+
+/**
+ * Delete a scene
+ * @param {string} sceneId - The ID of the scene to delete
+ * @returns {Promise} Promise with deletion result
+ */
+export const deleteScene = async (sceneId) => {
+  try {
+    const response = await api.delete(`/scenes/${sceneId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting scene:', error);
+    throw error;
+  }
+};
+
+/**
+ * Get available diagrams
+ * @returns {Promise} Promise with available diagrams
+ */
+export const getDiagrams = async () => {
+  try {
+    const response = await api.get('/diagrams');
+    return response.data;
+  } catch (error) {
+    console.error('Error getting diagrams:', error);
+    throw error;
+  }
+};
+
+/**
+ * Delete a diagram
+ * @param {string} diagramId - The ID of the diagram to delete
+ * @returns {Promise} Promise with deletion result
+ */
+export const deleteDiagram = async (diagramId) => {
+  try {
+    const response = await api.delete(`/diagrams/${diagramId}`);
+    return response.data;
+  } catch (error) {
+    console.error('Error deleting diagram:', error);
+    throw error;
+  }
+};
+
+// API Service object
+const apiService = {
   getStatus,
   processInstruction,
   executeTool,
@@ -154,4 +288,15 @@ export default {
   updateConfig,
   uploadFile,
   getResultFileUrl,
+  getModels,
+  deleteModel,
+  getScenes,
+  getScene,
+  createScene,
+  updateScene,
+  deleteScene,
+  getDiagrams,
+  deleteDiagram
 };
+
+export default apiService;
