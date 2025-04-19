@@ -2,6 +2,11 @@
  * Setup file for Jest tests
  */
 
+// Create window object if it doesn't exist (for Node environment)
+if (typeof window === 'undefined') {
+  global.window = {};
+}
+
 // Mock for window.matchMedia
 window.matchMedia = window.matchMedia || function() {
   return {
