@@ -112,13 +112,6 @@ const ToolsPage = ({ addNotification }) => {
     setParameters({});
   };
   
-  const handleParameterChange = (name, value) => {
-    setParameters(prev => ({
-      ...prev,
-      [name]: value,
-    }));
-  };
-  
   const handleToolExecution = async () => {
     if (!selectedTool) return;
     

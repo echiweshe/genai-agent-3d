@@ -389,12 +389,6 @@ const ScenePage = ({ addNotification }) => {
     }
   };
   
-  const handlePreviewScene = () => {
-    // For now, we'll just set a preview flag
-    setPreviewModel(currentScene);
-    setShowPreviewDialog(true);
-  };
-  
   const handleClosePreviewDialog = () => {
     setShowPreviewDialog(false);
     setPreviewModel(null);

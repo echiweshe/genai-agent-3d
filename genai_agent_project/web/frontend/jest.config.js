@@ -11,10 +11,14 @@ module.exports = {
     customExportConditions: ['node', 'node-addons'],
   },
   
-  // Use setup file to configure Jest environment
+  // Use setup files to configure Jest environment
+  setupFiles: [
+    '<rootDir>/src/setupTests.js'
+  ],
+  
+  // Execute after setup files
   setupFilesAfterEnv: [
-    '@testing-library/jest-dom',
-    '<rootDir>/src/__tests__/setup.js'
+    '@testing-library/jest-dom'
   ],
   
   // Folder where tests are located
