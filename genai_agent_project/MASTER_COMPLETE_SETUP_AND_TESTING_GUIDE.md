@@ -290,6 +290,102 @@ python run_server.py --auto-port
 ### 2. Run E2E Tests
 
 ```bash
+
+
+# If necessary, Run the fix_dependencies script
+cd genai_agent_project/web/e2e
+.\fix_dependencies.bat
+
+# Then you can run the tests with:
+.\run_tests.bat
+
+# ----
+
+# EXTRA Setup
+
+Fix for Playwright Test Issues in GenAI Agent 3D
+I've identified the problem in your end-to-end (E2E) testing setup. The error message shows that the @playwright/test module is missing, which is required for running the Playwright tests.
+Step-by-Step Solution
+
+Install Playwright properly in your e2e directory:
+powershell# Navigate to the e2e directory
+cd C:\ZB_Share\Labs\src\CluadeMCP\genai-agent-3d\genai_agent_project\web\e2e
+
+# Make sure you have a package.json file
+npm init -y
+
+# Install Playwright as a dev dependency
+npm install --save-dev @playwright/test
+
+# Install Playwright browsers
+npx playwright install
+
+Verify the installation:
+After installing the package, try running the tests again:
+powershellnpx playwright test
+Or with the UI:
+powershellnpx playwright test --ui
+
+Run specific tests if needed:
+powershellnpx playwright test workflow.spec.js
+
+
+What Happened?
+This error occurred because:
+
+The Playwright tests are configured to use the @playwright/test package
+This package wasn't properly installed in your project
+When you run npx playwright test, it tries to use Playwright from a temporary cache, but the test configuration files are looking for a local installation
+
+Updates to Testing Process
+For future reference, here's how the E2E testing section of your testing guide should be updated:
+End-to-End Testing
+1. Start Backend for E2E Tests
+bash# Navigate to the backend directory
+cd genai_agent_project/web/backend
+
+# Start the server
+python run_server.py
+2. Install and Set Up Playwright
+bash# In a separate terminal, navigate to the e2e directory
+cd genai_agent_project/web/e2e
+
+# Make sure package.json exists
+npm init -y
+
+# Install Playwright as a dev dependency
+npm install --save-dev @playwright/test
+
+# Install Playwright browsers
+npx playwright install
+3. Run E2E Tests
+bash# In the e2e directory
+cd genai_agent_project/web/e2e
+
+# Run Playwright tests
+npx playwright test
+
+# Expected output should show all tests passing
+4. Run E2E Tests with UI (Optional)
+bash# For visual debugging, run with UI
+npx playwright test --ui
+
+# This will open a visual interface showing the tests
+5. Run Specific E2E Workflow Tests
+bash# Run just the workflow tests
+npx playwright test workflow.spec.js
+
+# These tests verify complete user journeys
+Additional Tips
+
+If you're working in a CI/CD environment, make sure to include the Playwright installation steps in your pipeline scripts.
+After updating or reinstalling dependencies, you might need to reinstall Playwright.
+If you encounter other module-not-found errors, check that all dependencies in your package.json are properly installed.
+
+This fix should resolve your current issue with the Playwright tests and ensure that your end-to-end testing can proceed as expected.
+
+
+
 # In a separate terminal, navigate to the e2e directory
 cd genai_agent_project/web/e2e
 
