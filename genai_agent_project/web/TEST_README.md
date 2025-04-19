@@ -18,12 +18,13 @@ Backend tests are written using `pytest` and are located in the `web/backend/tes
 
 To run backend tests, use the provided script:
 
-```bash
+```bash..
 cd web/backend
 python run_tests.py
 ```
 
 Options:
+
 - `--unit`: Run unit tests only
 - `--extended`: Run extended tests only
 - `--all`: Run all tests (default)
@@ -32,10 +33,11 @@ Options:
 ### Backend Test Categories
 
 1. **Unit Tests**: Basic tests for API endpoints and WebSocket functionality.
+
    - `test_api_endpoints.py`: Tests for basic API endpoints
    - `test_websocket.py`: Tests for basic WebSocket functionality
-
 2. **Extended Tests**: More comprehensive tests for advanced functionality.
+
    - `test_extended_api.py`: Advanced API endpoint tests including scenes, models, and diagrams
    - `test_extended_websocket.py`: Comprehensive WebSocket tests including connection handling and real-time updates
 
@@ -53,6 +55,7 @@ node run_tests.js
 ```
 
 Options:
+
 - `--unit-only`: Run service and utility tests only
 - `--component-only`: Run component tests only
 - `--e2e-only`: Run end-to-end tests from the frontend (requires backend to be running)
@@ -66,10 +69,11 @@ Options:
 ### Frontend Test Categories
 
 1. **Service Tests**: Tests for API and WebSocket services.
+
    - `services/api.test.js`: Tests for the API service
    - `services/websocket.test.js`: Tests for the WebSocket service
-
 2. **Component Tests**: Tests for React components.
+
    - `components/AppHeader.test.js`: Tests for the app header
    - `components/AppSidebar.test.js`: Tests for the sidebar navigation
    - `components/pages/*.test.js`: Tests for page components
@@ -110,6 +114,7 @@ python run_all_tests.py
 ```
 
 Options:
+
 - `--backend`: Run backend tests only
 - `--frontend`: Run frontend tests only
 - `--e2e`: Run E2E tests only
@@ -138,18 +143,21 @@ The tests are set up to run in a CI/CD pipeline. The pipeline will:
 When writing tests, follow these best practices:
 
 ### Backend Tests
+
 - Use fixtures for common setup
 - Mock external dependencies
 - Test both success and error scenarios
 - Test WebSocket connections and disconnections
 
 ### Frontend Tests
+
 - Mock API and WebSocket services
 - Test component rendering and interactions
 - Test form validation and submissions
 - Test error handling
 
 ### E2E Tests
+
 - Test complete user workflows
 - Verify visual elements and interactions
 - Test responsive behavior

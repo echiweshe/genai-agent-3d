@@ -472,6 +472,50 @@ python run_all_web_tests.py --port 8080
 python run_all_web_tests.py --no-backend
 python run_all_web_tests.py --no-frontend
 python run_all_web_tests.py --no-e2e
+
+
+
+# Correction
+
+How to Use the Fixed Tests
+
+For Backend Tests:
+powershellcd web/backend
+python -m pytest -xvs tests/
+The import error should now be resolved.
+For Frontend Tests:
+powershellcd web/frontend
+npm test
+These were already working fine.
+For E2E Tests:
+Use the new script that handles server setup:
+powershellpython run_e2e_tests.py
+This will:
+
+Start the backend server if it's not running
+Start the frontend server if it's not running
+Run the Playwright tests
+Stop the servers when done
+
+You can keep the servers running after tests finish:
+powershellpython run_e2e_tests.py --keep-servers
+
+
+Next Steps
+
+Run tests individually first to verify each type works properly:
+
+Backend tests
+Frontend tests
+E2E tests (using the new script)
+
+
+Run the modified test script once everything is working:
+powershellpython run_all_web_tests.py
+
+Examine test results and screenshots to diagnose any remaining issues.
+
+With these changes, your tests should run much more reliably and provide better diagnostic information when failures occur
 ```
 
 ### 4. Run Improved Integration Tests
