@@ -8,12 +8,16 @@ import argparse
 import subprocess
 import time
 
-def run_backend_server(port=8000):
+def run_backend_server(port=8000, test_mode=False):
     """Start the backend server in a subprocess"""
-    print(f"Starting backend server on port {port}...")
+    print(f"Starting backend server on port {port}{' in test mode' if test_mode else ''}...")
+    
+    cmd = [sys.executable, "run_server.py", "--port", str(port)]
+    if test_mode:
+        cmd.append("--test-mode")
     
     backend_process = subprocess.Popen(
-        [sys.executable, "run_server.py", "--port", str(port)],
+        cmd,
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE
     )
@@ -38,6 +42,12 @@ def run_unit_tests():
     result = subprocess.run(["pytest", "-xvs", "tests/"])
     return result.returncode
 
+def run_websocket_tests():
+    """Run WebSocket tests specifically"""
+    print("Running WebSocket tests...")
+    result = subprocess.run(["pytest", "-xvs", "tests/test_websocket.py", "tests/test_extended_websocket.py"])
+    return result.returncode
+
 def run_extended_tests():
     """Run extended API and websocket tests"""
     print("Running extended tests...")
@@ -57,18 +67,21 @@ def main():
     parser = argparse.ArgumentParser(description="Run backend tests")
     parser.add_argument("--unit", action="store_true", help="Run unit tests only")
     parser.add_argument("--extended", action="store_true", help="Run extended tests only")
+    parser.add_argument("--websocket", action="store_true", help="Run WebSocket tests only")
     parser.add_argument("--all", action="store_true", help="Run all tests")
     parser.add_argument("--port", type=int, default=8000, help="Port for backend server")
+    parser.add_argument("--test-mode", action="store_true", help="Run server in test mode with minimal dependencies")
     
     args = parser.parse_args()
     
     # Default to all tests if no specific test type is selected
-    if not any([args.unit, args.extended, args.all]):
+    if not any([args.unit, args.extended, args.websocket, args.all]):
         args.all = True
     
     # Determine which tests to run
     run_unit = args.unit or args.all
     run_extended = args.extended or args.all
+    run_websocket = args.websocket or args.all
     
     # Track overall success
     success = True
@@ -85,17 +98,27 @@ def main():
             else:
                 print("Unit tests passed")
         
-        # Start the backend server for extended tests
-        if run_extended:
-            backend_process = run_backend_server(args.port)
+        # Start the backend server for extended or websocket tests
+        if run_extended or run_websocket:
+            backend_process = run_backend_server(args.port, args.test_mode)
             
-            # Run extended tests
-            extended_result = run_extended_tests()
-            if extended_result != 0:
-                success = False
-                print("Extended tests failed")
-            else:
-                print("Extended tests passed")
+            # Run extended tests if requested
+            if run_extended:
+                extended_result = run_extended_tests()
+                if extended_result != 0:
+                    success = False
+                    print("Extended tests failed")
+                else:
+                    print("Extended tests passed")
+            
+            # Run WebSocket tests if requested
+            if run_websocket:
+                websocket_result = run_websocket_tests()
+                if websocket_result != 0:
+                    success = False
+                    print("WebSocket tests failed")
+                else:
+                    print("WebSocket tests passed")
     
     finally:
         # Stop the backend server

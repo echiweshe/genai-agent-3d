@@ -171,13 +171,20 @@ python run_tests.py --extended
 
 ```bash
 # Start the server in test mode
+cd genai_agent_project/web/backend
 python run_server.py --test-mode
 
 # In a separate terminal:
-cd genai_agent_project/web/backend
-python tests/manual_websocket_test.py
+cd genai_agent_project/web/backend/tests
+python manual_websocket_test.py
 
-# You should see successful connection and message exchange
+# You should see successful connection and message exchange with detailed test results
+
+# Alternatively, use the convenience scripts from the project root:
+cd genai_agent_project
+./run_websocket_test.bat  # Windows
+# OR
+./run_websocket_test.sh   # Linux/macOS
 ```
 
 ### 5. Verify All Backend Tests Together
@@ -465,6 +472,16 @@ OLLAMA_MODEL=llama3 python run_improved_tests.py
 # Backend tests only
 cd genai_agent_project/web/backend
 python run_tests.py --all
+
+# WebSocket tests only
+cd genai_agent_project/web/backend
+python run_tests.py --websocket
+
+# Manual WebSocket testing
+cd genai_agent_project
+./run_websocket_test.bat  # Windows
+# OR
+./run_websocket_test.sh   # Linux/macOS
 
 # Frontend tests only
 cd genai_agent_project/web/frontend

@@ -231,6 +231,40 @@ if __name__ == "__main__":
     asyncio.run(main())
 ```
 
+## Testing
+
+The project includes comprehensive testing for all components.
+
+### Running Core Tests
+
+```
+python run_tests.py
+```
+
+### Running Web Interface Tests
+
+```
+cd web
+python run_all_tests.py --all
+```
+
+### WebSocket Testing
+
+Real-time communication via WebSockets is a key feature that enables live updates during processing:
+
+```
+# Quick WebSocket test using the convenience script
+./run_websocket_test.bat  # Windows
+# OR
+./run_websocket_test.sh   # Linux/macOS
+
+# For detailed WebSocket testing options
+cd web
+python run_all_tests.py --manual-websocket --verbose
+```
+
+For more details on WebSocket testing, see [WEBSOCKET_TESTING_GUIDE.md](WEBSOCKET_TESTING_GUIDE.md).
+
 ## Troubleshooting
 
 ### Ollama Issues

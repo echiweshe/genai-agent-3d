@@ -61,26 +61,90 @@ class ConfigurationRequest(BaseModel):
 agent = None
 redis_bus = None
 
+# Check if running in test mode
+TEST_MODE = os.environ.get("GENAI_TEST_MODE", "false").lower() == "true"
+
 async def initialize_services():
     """Initialize services and agent"""
-    global agent, redis_bus
+    global agent, redis_bus, TEST_MODE
 
     try:
-        # Load configuration
-        config_path = os.path.join(parent_dir, "config.yaml")
-        with open(config_path, 'r') as f:
-            config = yaml.safe_load(f)
-        
-        # Initialize Redis bus
-        redis_config = config.get('redis', {})
-        redis_bus = RedisMessageBus(redis_config)
-        await redis_bus.connect()
-        
-        # Initialize agent
-        agent = GenAIAgent(config)
-        
-        logger.info("Services initialized successfully")
-        return True
+        if TEST_MODE:
+            logger.info("Initializing services in TEST MODE")
+            # In test mode, use mock objects
+            from unittest.mock import MagicMock
+            
+            class MockRedisMessageBus:
+                async def connect(self):
+                    logger.info("MockRedisMessageBus connected")
+                    return True
+                
+                async def disconnect(self):
+                    logger.info("MockRedisMessageBus disconnected")
+                    return True
+                
+                async def ping(self):
+                    return {"status": "ok", "message": "PONG (test mode)"}
+            
+            class MockToolRegistry:
+                def get_tools(self):
+                    return [
+                        type('Tool', (), {"name": "scene_generator", "description": "Generate 3D scenes"}),
+                        type('Tool', (), {"name": "model_generator", "description": "Generate 3D models"}),
+                        type('Tool', (), {"name": "test_tool", "description": "Tool for testing"})
+                    ]
+                
+                async def execute_tool(self, tool_name, parameters):
+                    logger.info(f"Mock executing tool: {tool_name} with parameters: {parameters}")
+                    return {
+                        "status": "success",
+                        "tool": tool_name,
+                        "result": f"Mock result for {tool_name}",
+                        "parameters": parameters
+                    }
+            
+            class MockGenAIAgent:
+                def __init__(self):
+                    self.tool_registry = MockToolRegistry()
+                
+                async def process_instruction(self, instruction, context=None):
+                    logger.info(f"Mock processing instruction: {instruction}")
+                    return {
+                        "status": "success",
+                        "instruction": instruction,
+                        "result": f"Mock result for: {instruction}",
+                        "context": context or {}
+                    }
+                
+                async def close(self):
+                    logger.info("MockGenAIAgent closed")
+                    return True
+            
+            # Initialize mock services
+            redis_bus = MockRedisMessageBus()
+            await redis_bus.connect()
+            
+            agent = MockGenAIAgent()
+            
+            logger.info("Mock services initialized successfully")
+            return True
+        else:
+            # Normal initialization
+            # Load configuration
+            config_path = os.path.join(parent_dir, "config.yaml")
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f)
+            
+            # Initialize Redis bus
+            redis_config = config.get('redis', {})
+            redis_bus = RedisMessageBus(redis_config)
+            await redis_bus.connect()
+            
+            # Initialize agent
+            agent = GenAIAgent(config)
+            
+            logger.info("Services initialized successfully")
+            return True
     except Exception as e:
         logger.error(f"Error initializing services: {str(e)}")
         return False
