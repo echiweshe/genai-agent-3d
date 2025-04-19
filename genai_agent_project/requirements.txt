@@ -30,3 +30,8 @@ aioredis
 
 # For Belnder SceneX Addon
 pydantic-core 
+
+# Websocket
+uvicorn
+fastapi
+websockets

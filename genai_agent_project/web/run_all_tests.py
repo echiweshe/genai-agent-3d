@@ -37,6 +37,61 @@ def run_command(command, cwd=None, env=None):
         print(f"Command failed with exit code {e.returncode}")
         return False
 
+def run_manual_websocket_test(args):
+    """Run the manual WebSocket test"""
+    print_header("MANUAL WEBSOCKET TEST")
+    
+    # Start the server in test mode
+    print("Starting server in test mode...")
+    server_cmd = [sys.executable, "run_server.py", "--test-mode"]
+    if args.port:
+        server_cmd.extend(["--port", str(args.port)])
+    
+    server_process = None
+    try:
+        server_process = subprocess.Popen(
+            server_cmd,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            cwd=BACKEND_DIR
+        )
+        
+        # Give the server a moment to start
+        time.sleep(3)
+        
+        if server_process.poll() is not None:
+            print("Error: Failed to start backend server")
+            stdout, stderr = server_process.communicate()
+            print("STDOUT:", stdout.decode())
+            print("STDERR:", stderr.decode())
+            return False
+        
+        print("Server started successfully. Running WebSocket test...")
+        
+        # Run the manual WebSocket test
+        test_cmd = [sys.executable, "tests/manual_websocket_test.py"]
+        if args.port:
+            test_cmd.extend(["--port", str(args.port)])
+        
+        if args.verbose:
+            test_cmd.append("--verbose")
+        
+        cmd = " ".join(test_cmd)
+        success = run_command(cmd, cwd=BACKEND_DIR)
+        return success
+    
+    finally:
+        # Stop the server
+        if server_process and server_process.poll() is None:
+            print("Stopping server...")
+            if platform.system() == "Windows":
+                # On Windows, we need to use taskkill to forcefully terminate the process
+                subprocess.run(f"taskkill /F /PID {server_process.pid}", shell=True)
+            else:
+                server_process.terminate()
+                server_process.wait(timeout=5)
+            print("Server stopped")
+
 def run_backend_tests(args):
     """Run backend tests"""
     print_header("BACKEND TESTS")
@@ -47,11 +102,16 @@ def run_backend_tests(args):
         test_cmd.append("--unit")
     elif args.extended_only:
         test_cmd.append("--extended")
+    elif args.websocket_only:
+        test_cmd.append("--websocket")
     else:
         test_cmd.append("--all")
     
     if args.port:
         test_cmd.extend(["--port", str(args.port)])
+        
+    if args.test_mode:
+        test_cmd.append("--test-mode")
     
     cmd = " ".join(test_cmd)
     return run_command(cmd, cwd=BACKEND_DIR)
@@ -150,11 +210,14 @@ def main():
     test_selection.add_argument("--backend", action="store_true", help="Run backend tests only")
     test_selection.add_argument("--frontend", action="store_true", help="Run frontend tests only")
     test_selection.add_argument("--e2e", action="store_true", help="Run E2E tests only")
+    test_selection.add_argument("--manual-websocket", action="store_true", help="Run manual WebSocket tests only")
     
     # Backend test options
     backend_options = parser.add_argument_group("Backend Test Options")
     backend_options.add_argument("--unit-only", action="store_true", help="Run backend unit tests only")
     backend_options.add_argument("--extended-only", action="store_true", help="Run backend extended tests only")
+    backend_options.add_argument("--websocket-only", action="store_true", help="Run backend WebSocket tests only")
+    backend_options.add_argument("--test-mode", action="store_true", help="Run server in test mode with minimal dependencies")
     
     # Frontend test options
     frontend_options = parser.add_argument_group("Frontend Test Options")
@@ -170,29 +233,35 @@ def main():
     
     # Common options
     parser.add_argument("--port", type=int, default=8000, help="Port for backend server")
+    parser.add_argument("--verbose", "-v", action="store_true", help="Enable verbose output")
     
     args = parser.parse_args()
     
     # If no specific test type is selected, run all tests
-    run_all = not any([args.backend, args.frontend, args.e2e])
+    run_all = not any([args.backend, args.frontend, args.e2e, args.manual_websocket])
     
     # Track overall success
     success = True
     
-    # Run backend tests
-    if args.backend or run_all:
-        backend_success = run_backend_tests(args)
-        success = success and backend_success
-    
-    # Run frontend tests
-    if args.frontend or run_all:
-        frontend_success = run_frontend_tests(args)
-        success = success and frontend_success
-    
-    # Run E2E tests
-    if args.e2e or run_all:
-        e2e_success = run_e2e_tests(args)
-        success = success and e2e_success
+    # Run manual WebSocket tests (this is separate to avoid running it in the default "all" mode)
+    if args.manual_websocket:
+        websocket_success = run_manual_websocket_test(args)
+        success = success and websocket_success
+    else:
+        # Run backend tests
+        if args.backend or run_all:
+            backend_success = run_backend_tests(args)
+            success = success and backend_success
+        
+        # Run frontend tests
+        if args.frontend or run_all:
+            frontend_success = run_frontend_tests(args)
+            success = success and frontend_success
+        
+        # Run E2E tests
+        if args.e2e or run_all:
+            e2e_success = run_e2e_tests(args)
+            success = success and e2e_success
     
     # Print summary
     print_header("TEST SUMMARY")

@@ -39,3 +39,6 @@ try:
 finally:
     if os.path.exists(temp_script_path):
         os.remove(temp_script_path)
+
+
+git add .
