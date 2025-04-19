@@ -7,9 +7,20 @@ import sys
 import pytest
 from fastapi.testclient import TestClient
 
-# Add parent directory to path for imports
-parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
-sys.path.append(parent_dir)
+# Fix import paths for tests
+# First, make sure we're in the right directory context
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), '..', '..', '..'))
+
+# Add project root to sys.path
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+    print(f"Added {project_root} to path")
+
+# Make local imports available
+backend_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
+if backend_dir not in sys.path:
+    sys.path.insert(0, backend_dir)
+    print(f"Added {backend_dir} to path")
 
 # Import app and create test client
 from web.backend.main import app

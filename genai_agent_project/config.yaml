@@ -75,6 +75,8 @@ scene:
     - 0
     - 10
     type: SUN
+test_section:
+  test_key: test_value
 tools:
   blender_gpt:
     class: BlenderGPTTool
