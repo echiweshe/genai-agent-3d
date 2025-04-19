@@ -3,6 +3,7 @@
 This document provides comprehensive instructions for setting up and testing the GenAI Agent 3D project from scratch. Follow these steps in sequence to ensure a properly functioning system.
 
 ## Table of Contents
+
 1. [Prerequisites](#prerequisites)
 2. [Core System Setup](#core-system-setup)
 3. [External Dependencies Setup](#external-dependencies-setup)
@@ -15,6 +16,7 @@ This document provides comprehensive instructions for setting up and testing the
 ## Prerequisites
 
 ### Required Software
+
 - Python 3.10+ (Python 3.11 recommended)
 - Node.js 16+ (Node.js 18 recommended)
 - Redis Server
@@ -23,6 +25,7 @@ This document provides comprehensive instructions for setting up and testing the
 - Ollama (for local LLM capabilities)
 
 ### Check Prerequisites
+
 ```bash
 # Verify Python version
 python --version
@@ -46,12 +49,14 @@ ollama --version
 ## Core System Setup
 
 ### 1. Clone the Repository
+
 ```bash
 git clone https://github.com/yourusername/genai-agent-3d.git
 cd genai-agent-3d
 ```
 
 ### 2. Python Environment Setup
+
 ```bash
 # Create and activate a virtual environment
 python -m venv venv
@@ -60,15 +65,20 @@ venv\Scripts\activate     # Windows
 
 # Install dependencies
 pip install -r requirements.txt
+
+pip uninstall pydantic pydantic-core -y
+pip install --no-cache-dir pydantic
 ```
 
 ### 3. Create Required Directories
+
 ```bash
 # Run the directory creation script
 python create_directories.py
 ```
 
 ### 4. Configure the Application
+
 ```bash
 # Edit the configuration file to match your environment
 # Especially update Blender path and any API keys
@@ -76,6 +86,7 @@ nano config.yaml  # or use any text editor
 ```
 
 ### 5. Initialize the Core System
+
 ```bash
 # Run the initialization script
 python setup_project.py
@@ -87,6 +98,7 @@ python run.py check
 ## External Dependencies Setup
 
 ### 1. Ollama Setup
+
 ```bash
 # Start Ollama server
 python run.py ollama start
@@ -100,6 +112,7 @@ python run.py ollama list
 ```
 
 ### 2. External Integrations Setup
+
 ```bash
 # Run the integration setup utility
 python setup_integrations.py
@@ -114,9 +127,12 @@ python run.py check-integrations
 ```
 
 ### 3. Verify Blender Integration
+
 ```bash
 # Test Blender script execution
 python examples/test_blender_script.py
+
+python .\00_test_blender_integration.py
 
 # You should see Blender launch and create a simple cube
 ```
@@ -124,6 +140,7 @@ python examples/test_blender_script.py
 ## Backend API Setup and Testing
 
 ### 1. Set Up Backend API
+
 ```bash
 # Navigate to the backend directory
 cd genai_agent_project/web/backend
@@ -133,6 +150,7 @@ pip install -r requirements.txt
 ```
 
 ### 2. Run Basic Backend Tests
+
 ```bash
 # Run unit tests for the backend API
 python run_tests.py --unit
@@ -141,6 +159,7 @@ python run_tests.py --unit
 ```
 
 ### 3. Test Extended API Functionality
+
 ```bash
 # Run extended API tests
 python run_tests.py --extended
@@ -149,6 +168,7 @@ python run_tests.py --extended
 ```
 
 ### 4. Test WebSocket Functionality
+
 ```bash
 # Start the server in test mode
 python run_server.py --test-mode
@@ -161,6 +181,7 @@ python tests/manual_websocket_test.py
 ```
 
 ### 5. Verify All Backend Tests Together
+
 ```bash
 # Run all backend tests
 python run_tests.py --all
@@ -171,6 +192,7 @@ python run_tests.py --all
 ## Frontend Setup and Testing
 
 ### 1. Set Up Frontend
+
 ```bash
 # Navigate to the frontend directory
 cd genai_agent_project/web/frontend
@@ -180,6 +202,7 @@ npm install
 ```
 
 ### 2. Run Service Unit Tests
+
 ```bash
 # Test API and WebSocket services
 node run_tests.js --unit-only
@@ -188,6 +211,7 @@ node run_tests.js --unit-only
 ```
 
 ### 3. Run Component Tests
+
 ```bash
 # Test React components
 node run_tests.js --component-only
@@ -196,6 +220,7 @@ node run_tests.js --component-only
 ```
 
 ### 4. Run Frontend Tests with Coverage
+
 ```bash
 # Run all frontend tests with coverage reporting
 node run_tests.js --all --coverage
@@ -206,6 +231,7 @@ node run_tests.js --all --coverage
 ## End-to-End Testing
 
 ### 1. Start Backend for E2E Tests
+
 ```bash
 # Navigate to the backend directory
 cd genai_agent_project/web/backend
@@ -215,6 +241,7 @@ python run_server.py
 ```
 
 ### 2. Run E2E Tests
+
 ```bash
 # In a separate terminal, navigate to the e2e directory
 cd genai_agent_project/web/e2e
@@ -226,6 +253,7 @@ npx playwright test
 ```
 
 ### 3. Run E2E Tests with UI (Optional)
+
 ```bash
 # For visual debugging, run with UI
 npx playwright test --ui
@@ -234,6 +262,7 @@ npx playwright test --ui
 ```
 
 ### 4. Run Specific E2E Workflow Tests
+
 ```bash
 # Run just the workflow tests
 npx playwright test workflow.spec.js
@@ -244,6 +273,7 @@ npx playwright test workflow.spec.js
 ## Complete System Testing
 
 ### 1. Run the Cleanup Script
+
 ```bash
 # Ensure a clean environment
 cd genai_agent_project
@@ -251,6 +281,7 @@ python cleanup.py
 ```
 
 ### 2. Run All Tests in Sequence
+
 ```bash
 # Run the comprehensive test script
 python run_cleanup_and_test.py
@@ -262,6 +293,7 @@ python run_cleanup_and_test.py
 ```
 
 ### 3. Run Web Interface Tests
+
 ```bash
 # Navigate to the web directory
 cd genai_agent_project/web
@@ -278,6 +310,7 @@ python run_all_tests.py --all --start-backend
 ```
 
 ### 4. Run Improved Integration Tests
+
 ```bash
 # Test the improved JSON generation and extraction
 cd genai_agent_project
@@ -287,6 +320,7 @@ python run_improved_tests.py
 ```
 
 ### 5. Run Manual Testing with Interactive Shell
+
 ```bash
 # Start the interactive shell
 python run.py shell
@@ -298,6 +332,7 @@ python run.py shell
 ```
 
 ### 6. Web Interface Manual Testing
+
 ```bash
 # Start the backend server
 cd genai_agent_project/web/backend
@@ -320,6 +355,7 @@ npm start
 ## Troubleshooting
 
 ### Ollama Issues
+
 ```bash
 # Check Ollama status
 ollama ps
@@ -335,6 +371,7 @@ python run.py ollama pull deepseek-coder
 ```
 
 ### Redis Issues
+
 ```bash
 # Check Redis connection
 redis-cli ping
@@ -350,6 +387,7 @@ net start Redis
 ```
 
 ### Blender Issues
+
 ```bash
 # Test Blender directly
 blender --python genai_agent_project/examples/simple_blender_test.py
@@ -359,6 +397,7 @@ blender --python genai_agent_project/examples/simple_blender_test.py
 ```
 
 ### Web Backend Issues
+
 ```bash
 # Check for available ports
 netstat -ano | findstr :8000   # Windows
@@ -370,6 +409,7 @@ python run_server.py --debug
 ```
 
 ### Web Frontend Issues
+
 ```bash
 # Clear npm cache
 npm cache clean --force
@@ -383,19 +423,21 @@ npm run tsc
 ```
 
 ### Common Test Failures
+
 1. **Backend API Tests**:
+
    - Ensure Redis is running
    - Verify port 8000 is not in use by another application
    - Check for correct Python dependencies
-
 2. **WebSocket Tests**:
-   - These are often timing-sensitive; try increasing timeout values
 
+   - These are often timing-sensitive; try increasing timeout values
 3. **Frontend Tests**:
+
    - Jest might need a clean cache: `npx jest --clearCache`
    - Ensure all required npm modules are installed
-
 4. **E2E Tests**:
+
    - Ensure Playwright is installed: `npx playwright install`
    - Backend server must be running
    - Consider running tests one at a time if encountering race conditions
@@ -405,6 +447,7 @@ npm run tsc
 ## Quick Reference Commands
 
 ### Basic System Testing
+
 ```bash
 # Core system test
 python run.py check
@@ -417,6 +460,7 @@ OLLAMA_MODEL=llama3 python run_improved_tests.py
 ```
 
 ### Web Testing
+
 ```bash
 # Backend tests only
 cd genai_agent_project/web/backend
@@ -436,6 +480,7 @@ python run_all_tests.py --all --start-backend
 ```
 
 ### Running the Application
+
 ```bash
 # Start the interactive shell
 python run.py shell
