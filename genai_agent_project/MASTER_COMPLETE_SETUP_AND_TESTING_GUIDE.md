@@ -269,6 +269,22 @@ cd genai_agent_project/web/backend
 
 # Start the server
 python run_server.py
+
+# Alternatively --- To use these scripts, you can simply run:
+
+# On Windows
+.\start_server.bat
+
+# On Linux/Mac
+./start_server.sh
+If you want to use a different port:
+# On Windows
+start_server.bat --port 8080
+
+# On Linux/Mac
+./start_server.sh --port 8080
+
+python run_server.py --auto-port
 ```
 
 ### 2. Run E2E Tests
