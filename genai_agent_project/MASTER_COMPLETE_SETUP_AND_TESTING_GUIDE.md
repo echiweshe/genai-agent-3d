@@ -219,6 +219,20 @@ cd C:\ZB_Share\Labs\src\CluadeMCP\genai-agent-3d\genai_agent_project\web\fronten
 node run_tests.js --unit-only
 
 # Expected output should show all service tests passing
+
+
+# First, run the updated installation script to get all required dependencies:
+
+bashcd C:\ZB_Share\Labs\src\CluadeMCP\genai-agent-3d\genai_agent_project\web\frontend
+.\install_test_deps.bat
+
+# Try running the simplified test script that uses the built-in React testing infrastructure:
+
+.\run_react_tests.bat
+
+# If that still doesn't work, we can try a more direct approach:
+
+npx react-scripts test --testMatch="**/simple.test.js" --watchAll=false
 ```
 
 ### 3. Run Component Tests
