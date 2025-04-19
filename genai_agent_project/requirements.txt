@@ -35,3 +35,7 @@ pydantic-core
 uvicorn
 fastapi
 websockets
+python-multipart
+
+aiofiles
+python-dotenv y

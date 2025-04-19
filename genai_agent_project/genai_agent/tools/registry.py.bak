@@ -154,14 +154,6 @@ class ToolRegistry:
                 "error": str(e)
             }
     
-    def get_tools(self):
-        """
-        Get all registered tools.
-        This method is added to fix compatibility with the backend API.
-        """
-        # Delegate to existing method
-        return list(self.get_all_tools().values())
-        
     @staticmethod
     def load_tool_class(module_path: str, class_name: str) -> Type[Tool]:
         """
