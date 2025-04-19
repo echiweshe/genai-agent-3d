@@ -51,6 +51,20 @@ if (args.includes('--no-coverage')) {
 function runCommand(command, title) {
   console.log(`\n=== Running ${title} ===\n`);
   try {
+    // Check if all required dependencies are installed
+    if (title === 'Jest Tests') {
+      try {
+        require('jest-environment-jsdom');
+      } catch (e) {
+        console.error('\n❌ Missing required packages for testing!');
+        console.error('Please run the installation script first:');
+        console.error('  Windows: .\\install_test_deps.bat');
+        console.error('  Linux/macOS: ./install_test_deps.sh');
+        console.error('Error details:', e.message);
+        process.exit(1);
+      }
+    }
+    
     execSync(command, { stdio: 'inherit' });
     console.log(`\n✅ ${title} completed successfully\n`);
     return true;
@@ -68,7 +82,8 @@ function runCommand(command, title) {
  * @returns {string} Jest command
  */
 function buildTestCommand() {
-  let command = 'npx jest';
+  // Use create-react-app's built-in test renderer
+  let command = 'npx react-scripts test';
   
   // Test patterns
   const testPatterns = [];
@@ -85,8 +100,11 @@ function buildTestCommand() {
   
   // Options
   if (config.watchMode) {
-    command += ' --watch';
+    // Watch mode is default for react-scripts
+  } else {
+    command += ' --watchAll=false';
   }
+  
   if (config.generateCoverage) {
     command += ' --coverage';
   }

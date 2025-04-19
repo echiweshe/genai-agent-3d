@@ -212,6 +212,10 @@ npm install
 
 ```bash
 # Test API and WebSocket services
+
+cd C:\ZB_Share\Labs\src\CluadeMCP\genai-agent-3d\genai_agent_project\web\frontend
+.\install_test_deps.bat
+
 node run_tests.js --unit-only
 
 # Expected output should show all service tests passing
