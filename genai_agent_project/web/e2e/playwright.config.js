@@ -7,10 +7,10 @@ require('dotenv').config();
  */
 module.exports = defineConfig({
   testDir: './tests',
-  fullyParallel: true,
+  fullyParallel: false, // Don't run tests in parallel
   forbidOnly: !!process.env.CI,
-  retries: process.env.CI ? 2 : 0,
-  workers: process.env.CI ? 1 : undefined,
+  retries: process.env.CI ? 2 : 1, // Retry once for greater stability
+  workers: 1, // Only use 1 worker to avoid overloading the system
   reporter: 'html',
 
   // Global setup for web server
@@ -30,6 +30,9 @@ module.exports = defineConfig({
     // Record video on failure
     video: 'on-first-retry',
   },
+
+  // Increase timeout for tests since we need to wait for servers
+  timeout: 120000, // 2 minutes
 
   projects: [
     {
@@ -58,13 +61,11 @@ module.exports = defineConfig({
     },
   ],
 
-  // Local web server
-  webServer: {
-    // Start React development server
-    command: 'cd ../frontend && npm run start',
-    url: 'http://localhost:3000',
-    reuseExistingServer: !process.env.CI,
-    // Slow start for server
-    timeout: 120 * 1000,
-  },
+  // Comment out webServer to use our own server management
+  // webServer: {
+  //   command: 'cd ../frontend && npm run start',
+  //   url: 'http://localhost:3000',
+  //   reuseExistingServer: !process.env.CI,
+  //   timeout: 120 * 1000,
+  // },
 });

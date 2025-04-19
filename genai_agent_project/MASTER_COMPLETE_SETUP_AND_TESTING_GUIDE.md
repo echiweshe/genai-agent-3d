@@ -444,12 +444,34 @@ cd genai_agent_project/web
 # Run the master test script for web components
 python run_all_tests.py --all --start-backend
 
+# The script has been saved to: C:\ZB_Share\Labs\src\CluadeMCP\genai-agent-3d\genai_agent_project\run_all_web_tests.py
+
+cd ..
+python run_all_web_tests.py --all --start-backend
+
 # This will:
 # 1. Start the backend server
 # 2. Run all backend tests
 # 3. Run all frontend tests
 # 4. Run all e2e tests
 # 5. Report comprehensive results
+
+
+$  -----
+
+# How to use the new script:
+Run all tests:
+python run_all_web_tests.py
+
+#   Skip specific test types:
+python run_all_web_tests.py --no-e2e  # Skip end-to-end tests
+Specify a different port:
+python run_all_web_tests.py --port 8080
+
+#If you want to skip certain tests, you can still use:
+python run_all_web_tests.py --no-backend
+python run_all_web_tests.py --no-frontend
+python run_all_web_tests.py --no-e2e
 ```
 
 ### 4. Run Improved Integration Tests
