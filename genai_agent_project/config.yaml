@@ -30,7 +30,7 @@ integrations:
     path: C:\ZB_Share\Labs\src\CluadeMCP\genai-agent-3d\integrations\trellis
 llm:
   generation_timeout: 300
-  model: llama3
+  model: llama3.2:latest
   prompt_templates:
     json_generation: '
 
