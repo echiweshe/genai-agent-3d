@@ -418,18 +418,3 @@ class RedisMessageBus:
                     future.set_exception(Exception(response['error']))
                 else:
                     future.set_result(response.get('result', {}))
-
-    async def ping(self):
-        """Send a ping command to Redis to check connectivity"""
-        try:
-            if self.redis is None:
-                await self.connect()
-            
-            if self.redis:
-                result = await self.redis.ping()
-                return {"status": "ok", "message": "PONG", "result": result}
-            else:
-                return {"status": "error", "message": "Redis not connected"}
-        except Exception as e:
-            self.logger.error(f"Error pinging Redis: {e}")
-            return {"status": "error", "message": f"Error: {str(e)}"}

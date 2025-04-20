@@ -1,0 +1,72 @@
+== MANUAL FIX FOR INDENTATION ERROR IN MAIN.PY ==
+
+You're encountering an indentation error in main.py:
+
+IndentationError: expected an indented block after function definition on line 357
+  File "C:\ZB_Share\Labs\src\CluadeMCP\genai-agent-3d\genai_agent_project\web\backend\main.py", line 359
+    @app.get("/models")
+    ^
+
+This happens because our fix script added a new @app.get("/models") endpoint
+right after a function definition that has no body/implementation.
+
+Here's how to fix it manually:
+
+1. Open the main.py file in your editor:
+   C:\ZB_Share\Labs\src\CluadeMCP\genai-agent-3d\genai_agent_project\web\backend\main.py
+
+2. Look at line 357 - you should see a function definition that ends with ":" 
+   but has no indented code block after it.
+
+3. Add a "pass" statement after the function definition with proper indentation:
+
+   def some_function():
+       pass   # Add this line with 4 spaces of indentation
+       
+   @app.get("/models")   # This line should NOT be indented
+
+4. Save the file and restart your backend server.
+
+If you'd prefer to completely remove the models endpoint that was added, you can
+simply delete these lines:
+
+   @app.get("/models")
+   async def get_models():
+       # ... all lines in this function ...
+
+Then restart your backend server.
+
+== FIX FOR THE MODELS ENDPOINT ==
+
+After fixing the indentation error, if you want to properly add the models endpoint,
+you can add this code in main.py (make sure it's NOT indented under any function):
+
+@app.get("/models")
+async def get_models():
+    """Get available models"""
+    try:
+        output_dir = os.path.join(parent_dir, "output")
+        models_dir = os.path.join(output_dir, "models")
+        
+        # Ensure the directory exists
+        os.makedirs(models_dir, exist_ok=True)
+        
+        # Look for .blend files in the models directory
+        models = []
+        for root, dirs, files in os.walk(models_dir):
+            for file in files:
+                if file.endswith('.blend') or file.endswith('.py'):
+                    model_path = os.path.join(root, file)
+                    rel_path = os.path.relpath(model_path, output_dir)
+                    models.append({
+                        "id": os.path.splitext(file)[0],
+                        "name": file,
+                        "path": rel_path,
+                        "size": os.path.getsize(model_path),
+                        "modified": os.path.getmtime(model_path)
+                    })
+        
+        return {"models": models}
+    except Exception as e:
+        logger.error(f"Error getting models: {str(e)}")
+        return {"status": "error", "message": str(e), "models": []}

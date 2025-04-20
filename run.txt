@@ -1,0 +1,13 @@
+
+
+cd .\genai_agent_project
+.\venv\Scripts\activate
+
+python start_all_services.py
+
+
+
+python .\manage_services.py start
+
+
+
