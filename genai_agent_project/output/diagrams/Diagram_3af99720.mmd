@@ -1,0 +1,11 @@
+graph TD
+    A[Start] --> B{Is it a 3D scene?}
+    B -->|Yes| C[Create Scene]
+    B -->|No| D[Create Simple Object]
+    C --> E[Add Camera]
+    C --> F[Add Lighting]
+    D --> G[Apply Materials]
+    E --> H[Render Scene]
+    F --> H
+    G --> H
+    H --> I[End]

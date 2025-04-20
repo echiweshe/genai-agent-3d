@@ -389,7 +389,104 @@ async def get_models():
         logger.error(f"Error getting models: {str(e)}")
         return {"status": "error", "message": str(e), "models": []}
 
-    """Get a result file"""
+@app.get("/diagrams")
+async def get_diagrams():
+    """Get available diagrams - direct handler for frontend compatibility"""
+    try:
+        # Define output directories
+        output_dir = os.path.join(parent_dir, "output")
+        diagrams_dir = os.path.join(output_dir, "diagrams")
+        
+        # Ensure the directory exists
+        os.makedirs(diagrams_dir, exist_ok=True)
+        
+        # Look for diagram files in the diagrams directory
+        diagrams = []
+        for root, dirs, files in os.walk(diagrams_dir):
+            for file in files:
+                if file.endswith('.blend') or file.endswith('.py') or file.endswith('.svg') or file.endswith('.png'):
+                    diagram_path = os.path.join(root, file)
+                    rel_path = os.path.relpath(diagram_path, output_dir)
+                    diagrams.append({
+                        "id": os.path.splitext(file)[0],
+                        "name": file,
+                        "path": rel_path,
+                        "size": os.path.getsize(diagram_path),
+                        "modified": os.path.getmtime(diagram_path)
+                    })
+        
+        # For compatibility, return the same format as the frontend expects
+        return {"diagrams": diagrams}
+    except Exception as e:
+        logger.error(f"Error getting diagrams: {str(e)}")
+        return {"status": "error", "message": str(e), "diagrams": []}
+
+@app.get("/scenes")
+async def get_scenes():
+    """Get available scenes - direct handler for frontend compatibility"""
+    try:
+        # Define output directories
+        output_dir = os.path.join(parent_dir, "output")
+        scenes_dir = os.path.join(output_dir, "scenes")
+        
+        # Ensure the directory exists
+        os.makedirs(scenes_dir, exist_ok=True)
+        
+        # Look for scene files in the scenes directory
+        scenes = []
+        for root, dirs, files in os.walk(scenes_dir):
+            for file in files:
+                if file.endswith('.blend') or file.endswith('.py'):
+                    scene_path = os.path.join(root, file)
+                    rel_path = os.path.relpath(scene_path, output_dir)
+                    scenes.append({
+                        "id": os.path.splitext(file)[0],
+                        "name": file,
+                        "path": rel_path,
+                        "size": os.path.getsize(scene_path),
+                        "modified": os.path.getmtime(scene_path)
+                    })
+        
+        # For compatibility, return the same format as the frontend expects
+        return {"scenes": scenes}
+    except Exception as e:
+        logger.error(f"Error getting scenes: {str(e)}")
+        return {"status": "error", "message": str(e), "scenes": []}
+
+@app.get("/blender-tools")
+async def get_blender_tools():
+    """Get available Blender tools - direct handler for frontend compatibility"""
+    try:
+        # Define output directories
+        output_dir = os.path.join(parent_dir, "output")
+        tools_dir = os.path.join(output_dir, "tools")
+        
+        # Ensure the directory exists
+        os.makedirs(tools_dir, exist_ok=True)
+        
+        # Look for tool files in the tools directory
+        tools = []
+        for root, dirs, files in os.walk(tools_dir):
+            for file in files:
+                if file.endswith('.py'):
+                    tool_path = os.path.join(root, file)
+                    rel_path = os.path.relpath(tool_path, output_dir)
+                    tools.append({
+                        "id": os.path.splitext(file)[0],
+                        "name": file,
+                        "path": rel_path,
+                        "size": os.path.getsize(tool_path),
+                        "modified": os.path.getmtime(tool_path)
+                    })
+        
+        # For compatibility, return the same format as the frontend expects
+        return {"tools": tools}
+    except Exception as e:
+        logger.error(f"Error getting Blender tools: {str(e)}")
+        return {"status": "error", "message": str(e), "tools": []}
+
+@app.get("/results/{filename}")
+async def get_result_file(filename: str):
     try:
         # Check file extension
         output_dir = os.path.join(parent_dir, "output")

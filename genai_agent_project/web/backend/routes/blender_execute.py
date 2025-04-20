@@ -302,7 +302,9 @@ async def get_blender_script_output(execution_id: str):
 @router.websocket("/ws/blender/{execution_id}")
 async def websocket_endpoint(websocket: WebSocket, execution_id: str):
     """WebSocket endpoint for real-time updates on script execution"""
-    await ws_manager.connect(websocket)
+    # Generate a client ID from execution_id
+    client_id = f"blender_{execution_id}"
+    await ws_manager.connect(client_id, websocket)
     
     try:
         # Send initial status if the execution exists
@@ -334,7 +336,7 @@ async def websocket_endpoint(websocket: WebSocket, execution_id: str):
         print(f"WebSocket error: {e}")
     
     finally:
-        await ws_manager.disconnect(websocket)
+        ws_manager.disconnect(client_id)
 
 @router.get("/blender/list-scripts/{folder:path}")
 async def list_blender_scripts(folder: str = ""):

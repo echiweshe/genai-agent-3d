@@ -1,0 +1,10 @@
+graph TD
+    subgraph Scene
+        A[Camera] -->|views| B[Center Object]
+        C[Light 1] -->|illuminates| B
+        D[Light 2] -->|illuminates| B
+        B -->|contains| E[Component 1]
+        B -->|contains| F[Component 2]
+        B -->|contains| G[Component 3]
+        H[Floor Plane] -->|supports| B
+    end
