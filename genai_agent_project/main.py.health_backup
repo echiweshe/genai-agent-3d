@@ -59,9 +59,3 @@ async def main():
     
 if __name__ == "__main__":
     asyncio.run(main())
-
-
-@app.get("/api/health")
-async def health_check():
-    """Health check endpoint for service monitoring"""
-    return {"status": "ok", "message": "Service is healthy"}
