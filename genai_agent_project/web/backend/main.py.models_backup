@@ -355,39 +355,6 @@ async def upload_file(file: UploadFile = File(...)):
 
 @app.get("/results/{filename}")
 async def get_result_file(filename: str):
-
-@app.get("/models")
-async def get_models():
-    """Get available models - direct handler for frontend compatibility"""
-    try:
-        # Define output directories
-        output_dir = os.path.join(parent_dir, "output")
-        models_dir = os.path.join(output_dir, "models")
-        
-        # Ensure the directory exists
-        os.makedirs(models_dir, exist_ok=True)
-        
-        # Look for .blend files in the models directory
-        models = []
-        for root, dirs, files in os.walk(models_dir):
-            for file in files:
-                if file.endswith('.blend') or file.endswith('.py'):
-                    model_path = os.path.join(root, file)
-                    rel_path = os.path.relpath(model_path, output_dir)
-                    models.append({
-                        "id": os.path.splitext(file)[0],
-                        "name": file,
-                        "path": rel_path,
-                        "size": os.path.getsize(model_path),
-                        "modified": os.path.getmtime(model_path)
-                    })
-        
-        # For compatibility, return the same format as the frontend expects
-        return {"models": models}
-    except Exception as e:
-        logger.error(f"Error getting models: {str(e)}")
-        return {"status": "error", "message": str(e), "models": []}
-
     """Get a result file"""
     try:
         # Check file extension

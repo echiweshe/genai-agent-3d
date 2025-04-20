@@ -17,6 +17,7 @@ import BuildIcon from '@mui/icons-material/Build';
 import ViewInArIcon from '@mui/icons-material/ViewInAr';
 import SceneIcon from '@mui/icons-material/Landscape';
 import DiagramIcon from '@mui/icons-material/Schema';
+import BlenderIcon from '@mui/icons-material/Animation';
 import SettingsIcon from '@mui/icons-material/Settings';
 
 const drawerWidth = 240;
@@ -32,6 +33,7 @@ const AppSidebar = ({ open, onClose, currentPath, navigate }) => {
     { text: 'Models', icon: <ViewInArIcon />, path: '/models' },
     { text: 'Scene Editor', icon: <SceneIcon />, path: '/scene' },
     { text: 'Diagrams', icon: <DiagramIcon />, path: '/diagrams' },
+    { text: 'Blender Scripts', icon: <BlenderIcon />, path: '/blender-scripts' },
     { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
   ];
   

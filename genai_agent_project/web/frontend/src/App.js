@@ -17,6 +17,7 @@ import ModelsPage from './components/pages/ModelsPage';
 import ScenePage from './components/pages/ScenePage';
 import DiagramsPage from './components/pages/DiagramsPage';
 import SettingsPage from './components/pages/SettingsPage';
+import BlenderScriptsPage from './components/pages/BlenderScriptsPage';
 
 // Services
 import { getStatus } from './services/api';
@@ -229,6 +230,7 @@ function App() {
               <Route path="/models" element={<ModelsPage addNotification={addNotification} />} />
               <Route path="/scene" element={<ScenePage addNotification={addNotification} />} />
               <Route path="/diagrams" element={<DiagramsPage addNotification={addNotification} />} />
+              <Route path="/blender-scripts" element={<BlenderScriptsPage addNotification={addNotification} />} />
               <Route path="/settings" element={<SettingsPage 
                 addNotification={addNotification}
                 darkMode={darkMode}
