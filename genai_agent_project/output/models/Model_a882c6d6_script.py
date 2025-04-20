@@ -1,6 +1,6 @@
 # Fallback model script for: red car
 # Style: realistic
-# Name: Model_5a4bee76
+# Name: Model_a882c6d6
 
 import bpy
 import math
@@ -13,10 +13,10 @@ bpy.ops.object.delete()
 # Create a simple mesh model
 bpy.ops.mesh.primitive_uv_sphere_add(radius=1, location=(0, 0, 0))
 sphere = bpy.context.active_object
-sphere.name = "Model_5a4bee76"
+sphere.name = "Model_a882c6d6"
 
 # Add a material
-mat = bpy.data.materials.new(name="Model_5a4bee76_Material")
+mat = bpy.data.materials.new(name="Model_a882c6d6_Material")
 mat.use_nodes = True
 nodes = mat.node_tree.nodes
 bsdf = nodes.get('Principled BSDF')
@@ -31,14 +31,14 @@ bpy.ops.object.modifier_add(type='SUBSURF')
 sphere.modifiers["Subdivision"].levels = 2
 
 bpy.ops.object.modifier_add(type='DISPLACE')
-texture = bpy.data.textures.new("Model_5a4bee76_Texture", type='NOISE')
+texture = bpy.data.textures.new("Model_a882c6d6_Texture", type='NOISE')
 sphere.modifiers["Displace"].texture = texture
 sphere.modifiers["Displace"].strength = 0.2
 
 # Add a simple armature
 bpy.ops.object.armature_add(location=(0, 0, 0))
 armature = bpy.context.active_object
-armature.name = "Model_5a4bee76_Armature"
+armature.name = "Model_a882c6d6_Armature"
 
 # Parent the sphere to the armature
 sphere.select_set(True)
@@ -64,9 +64,9 @@ bpy.context.scene.cycles.samples = 128
 # Output for status reporting
 output = {
     "status": "success",
-    "message": "Model 'Model_5a4bee76' created successfully",
-    "objects_created": ["Model_5a4bee76", "Model_5a4bee76_Armature", "Camera", "Sun"],
+    "message": "Model 'Model_a882c6d6' created successfully",
+    "objects_created": ["Model_a882c6d6", "Model_a882c6d6_Armature", "Camera", "Sun"],
     "model_description": "A red sphere with subdivision and displacement modifiers, rigged with a simple armature"
 }
 
-print("Generated model: Model_5a4bee76")
+print("Generated model: Model_a882c6d6")

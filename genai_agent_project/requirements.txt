@@ -38,4 +38,4 @@ websockets
 python-multipart
 
 aiofiles
-python-dotenv y
+python-dotenv
