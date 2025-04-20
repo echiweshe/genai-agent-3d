@@ -3,12 +3,33 @@
 cd .\genai_agent_project
 .\venv\Scripts\activate
 
+python .\manage_services.py start --service backend
+
+
 python start_all_services.py
 
 
 
-python .\manage_services.py start
+# Recovery from GitHub -------------------------------
+  
+cd .\genai_agent_project
+python -m venv venv
+.\venv\Scripts\activate
+python.exe -m pip install --upgrade pip
+   pip install -r requirements.txt
 
+# ----------
 
+cd .\genai_agent_project
+   cd web/backend
+   python -m venv venv
+   python.exe -m pip install --upgrade pip
+   pip install -r requirements.txt
+   
+   python run_server.py
+   
+# ----------
 
-
+cd .\genai_agent_project\web\frontend
+   npm install
+   npm start
