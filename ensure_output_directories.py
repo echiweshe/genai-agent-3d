@@ -1,165 +1,147 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 """
-Ensure Output Directories for GenAI Agent 3D
+Ensure Output Directories
+-------------------------
+This script ensures all output directories are properly set up and linked,
+addressing the issue with multiple output directory locations.
+"""
 
-This script creates all necessary output directories for the GenAI Agent 3D project
-to ensure that the Blender script execution feature works correctly.
-"""
 import os
 import sys
+import logging
+import platform
+import subprocess
+from pathlib import Path
 
-def create_directory(path):
-    """Create a directory if it doesn't exist"""
-    if not os.path.exists(path):
+# Configure logging
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+)
+logger = logging.getLogger("OutputDirectories")
+
+def ensure_directory_exists(directory):
+    """Ensure a directory exists, creating it if necessary."""
+    os.makedirs(directory, exist_ok=True)
+    logger.info(f"Ensured directory exists: {directory}")
+
+def create_directory_symlink(source, target):
+    """Create a directory symlink from source to target."""
+    # Remove existing link or directory if it exists
+    if os.path.exists(target):
+        if os.path.islink(target):
+            os.unlink(target)
+            logger.info(f"Removed existing symlink: {target}")
+        elif os.path.isdir(target):
+            import shutil
+            shutil.rmtree(target)
+            logger.info(f"Removed existing directory: {target}")
+        else:
+            os.remove(target)
+            logger.info(f"Removed existing file: {target}")
+    
+    # Create parent directory if needed
+    parent_dir = os.path.dirname(target)
+    if parent_dir and not os.path.exists(parent_dir):
+        os.makedirs(parent_dir, exist_ok=True)
+    
+    # Create the symlink
+    system = platform.system()
+    
+    if system == "Windows":
+        # On Windows, use mklink command if running as administrator
         try:
-            os.makedirs(path)
-            print(f"Created directory: {path}")
-            return True
-        except Exception as e:
-            print(f"Error creating directory {path}: {e}")
-            return False
+            # First try directory junction for compatibility
+            subprocess.run(
+                ["cmd", "/c", "mklink", "/J", target, source],
+                check=True,
+                capture_output=True
+            )
+            logger.info(f"Created directory junction: {source} -> {target}")
+        except subprocess.CalledProcessError:
+            # If that fails, try directory symbolic link (requires admin)
+            try:
+                subprocess.run(
+                    ["cmd", "/c", "mklink", "/D", target, source],
+                    check=True,
+                    capture_output=True
+                )
+                logger.info(f"Created directory symlink: {source} -> {target}")
+            except subprocess.CalledProcessError as e:
+                logger.error(f"Failed to create symlink (admin required): {e}")
+                return False
     else:
-        print(f"Directory already exists: {path}")
-        return True
-
-def ensure_output_directories():
-    """Ensure all required output directories exist"""
-    print("Ensuring output directories exist...")
-    
-    # Get project directory
-    project_dir = os.path.dirname(os.path.abspath(__file__))
-    project_dir = os.path.join(project_dir, "genai_agent_project")
-    
-    # Create main output directory
-    output_dir = os.path.join(project_dir, "output")
-    if not create_directory(output_dir):
-        return False
-    
-    # Create subdirectories
-    subdirectories = [
-        "models",
-        "scenes",
-        "diagrams",
-        "tools",
-        "temp"
-    ]
-    
-    for subdir in subdirectories:
-        subdir_path = os.path.join(output_dir, subdir)
-        if not create_directory(subdir_path):
+        # On Unix-like systems, use os.symlink
+        try:
+            os.symlink(source, target, target_is_directory=True)
+            logger.info(f"Created directory symlink: {source} -> {target}")
+        except Exception as e:
+            logger.error(f"Failed to create symlink: {e}")
             return False
     
-    # Create example scripts if needed
-    if len(os.listdir(os.path.join(output_dir, "models"))) == 0:
-        print("Creating example scripts...")
-        create_example_scripts(output_dir)
-    
-    print("All output directories created successfully!")
     return True
 
-def create_example_scripts(output_dir):
-    """Create example scripts for testing"""
-    # Example cube script
-    cube_script = """import bpy
-
-# Clear existing objects
-bpy.ops.object.select_all(action='SELECT')
-bpy.ops.object.delete()
-
-# Create a cube
-bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 0))
-cube = bpy.context.active_object
-cube.name = "Example_Cube"
-
-# Create a material
-mat = bpy.data.materials.new(name="CubeMaterial")
-mat.diffuse_color = (1.0, 0.0, 0.0, 1.0)  # Red
-cube.data.materials.append(mat)
-
-print("Example cube created successfully!")
-"""
+def setup_output_directories():
+    """Set up and link all output directories."""
+    project_root = Path(__file__).parent
     
-    # Example sphere script
-    sphere_script = """import bpy
-
-# Clear existing objects
-bpy.ops.object.select_all(action='SELECT')
-bpy.ops.object.delete()
-
-# Create a sphere
-bpy.ops.mesh.primitive_uv_sphere_add(radius=1.5, location=(0, 0, 0))
-sphere = bpy.context.active_object
-sphere.name = "Example_Sphere"
-
-# Create a material
-mat = bpy.data.materials.new(name="SphereMaterial")
-mat.diffuse_color = (0.0, 0.0, 1.0, 1.0)  # Blue
-sphere.data.materials.append(mat)
-
-print("Example sphere created successfully!")
-"""
+    # Primary output directory - this will be our canonical location
+    primary_output = project_root / "output"
+    ensure_directory_exists(primary_output)
     
-    # Example scene script
-    scene_script = """import bpy
-
-# Clear existing objects
-bpy.ops.object.select_all(action='SELECT')
-bpy.ops.object.delete()
-
-# Create a ground plane
-bpy.ops.mesh.primitive_plane_add(size=10, location=(0, 0, 0))
-plane = bpy.context.active_object
-plane.name = "Ground"
-
-# Create a material for the ground
-mat_ground = bpy.data.materials.new(name="GroundMaterial")
-mat_ground.diffuse_color = (0.2, 0.5, 0.2, 1.0)  # Green
-plane.data.materials.append(mat_ground)
-
-# Create a cube
-bpy.ops.mesh.primitive_cube_add(size=2, location=(0, 0, 1))
-cube = bpy.context.active_object
-cube.name = "Building"
-
-# Create a material for the cube
-mat_cube = bpy.data.materials.new(name="BuildingMaterial")
-mat_cube.diffuse_color = (0.8, 0.8, 0.8, 1.0)  # Gray
-cube.data.materials.append(mat_cube)
-
-# Create a camera
-bpy.ops.object.camera_add(location=(10, -10, 10))
-camera = bpy.context.active_object
-camera.name = "SceneCamera"
-
-# Point camera at the cube
-constraint = camera.constraints.new(type='TRACK_TO')
-constraint.target = cube
-constraint.track_axis = 'TRACK_NEGATIVE_Z'
-constraint.up_axis = 'UP_Y'
-
-# Create a sun
-bpy.ops.object.light_add(type='SUN', location=(5, 5, 10))
-sun = bpy.context.active_object
-sun.name = "Sun"
-
-# Set the camera as active
-bpy.context.scene.camera = camera
-
-print("Example scene created successfully!")
-"""
+    # Project output directory
+    project_output = project_root / "genai_agent_project" / "output"
     
-    # Write the scripts to files
-    with open(os.path.join(output_dir, "models", "example_cube.py"), "w") as f:
-        f.write(cube_script)
+    # Web backend output directory
+    web_output = project_root / "genai_agent_project" / "web" / "backend" / "output"
     
-    with open(os.path.join(output_dir, "models", "example_sphere.py"), "w") as f:
-        f.write(sphere_script)
+    # Create symlinks
+    success = True
     
-    with open(os.path.join(output_dir, "scenes", "example_scene.py"), "w") as f:
-        f.write(scene_script)
+    if project_output != primary_output:
+        if not create_directory_symlink(primary_output, project_output):
+            logger.warning(f"Could not link {primary_output} to {project_output}")
+            success = False
     
-    print("Example scripts created successfully!")
+    if web_output != primary_output:
+        if not create_directory_symlink(primary_output, web_output):
+            logger.warning(f"Could not link {primary_output} to {web_output}")
+            success = False
+    
+    # Update config.yaml to use the correct output directory
+    try:
+        import yaml
+        config_path = project_root / "genai_agent_project" / "config.yaml"
+        
+        if config_path.exists():
+            with open(config_path, 'r') as f:
+                config = yaml.safe_load(f) or {}
+            
+            # Ensure output directory is specified correctly
+            config["OUTPUT_DIRECTORY"] = str(primary_output)
+            
+            with open(config_path, 'w') as f:
+                yaml.dump(config, f, default_flow_style=False)
+            
+            logger.info(f"Updated config to use output directory: {primary_output}")
+    except Exception as e:
+        logger.error(f"Failed to update config: {e}")
+        success = False
+    
+    return success
+
+def main():
+    """Main function to set up output directories."""
+    logger.info("Setting up output directories...")
+    
+    success = setup_output_directories()
+    
+    if success:
+        logger.info("Output directories set up successfully")
+    else:
+        logger.error("Output directory setup completed with errors")
+    
+    return 0 if success else 1
 
 if __name__ == "__main__":
-    success = ensure_output_directories()
-    sys.exit(0 if success else 1)
+    sys.exit(main())

@@ -1,16 +1,46 @@
+Restart all services:
+python manage_services.py restart all
+
+Verify the LLM connection using the shell:
+python run.py shell
+Try a simple prompt like "Create a simple cube model" to test if the LLM is responding.
+Check that Ollama is running the correct model:
+python run.py ollama list
+Make sure "llama3" is in the list of available models. If not, you might need to pull it:
+python run.py ollama pull llama3
+
+
+The creation of the .env file should solve the main issue with the system falling back to mock responses. The environment variables define how the system connects to services like Ollama and Redis, and without them, the system was having trouble finding the right configuration.
+
+# --------------------------------
+
 
 
 cd .\genai_agent_project
 .\venv\Scripts\activate
+python run.py ollama start
 
-python .\manage_services.py start --service backend
+python .\manage_services.py start 
 
 
 python start_all_services.py
 
+cd .\genai_agent_project
+.\venv\Scripts\activate
+python manage_services.py restart all
+
+
+# -----------------
+
+cd .\genai_agent_project
+.\venv\Scripts\activate
+python run.py shell
+
 
 
 # Recovery from GitHub -------------------------------
+
+copy .ebv #  doesnt get restore from GutHub
   
 cd .\genai_agent_project
 python -m venv venv
