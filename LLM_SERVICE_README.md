@@ -51,6 +51,7 @@ GET /api/llm/providers
 ```
 
 Response:
+
 ```json
 [
   {
@@ -76,6 +77,7 @@ POST /api/llm/generate
 ```
 
 Request:
+
 ```json
 {
   "prompt": "Write a Blender Python script to create a red cube",
