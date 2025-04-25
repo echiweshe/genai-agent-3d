@@ -1,507 +1,153 @@
 """
-LLM Service for interacting with language models
+LLM Service - Handles integration with various Language Models
 """
 
-import logging
-import aiohttp
-import json
 import os
-import sys
-import requests
-import subprocess
-from typing import Dict, Any, List, Optional, Union
-
+import json
+import logging
+import httpx
 import asyncio
+from typing import Dict, Any, List, Optional
+from ..config import get_settings
 
+# Configure logging
 logger = logging.getLogger(__name__)
 
 class LLMService:
-    """
-    Service for interacting with language models (local or API-based)
-    """
+    """Service for interacting with language models"""
     
-    def __init__(self, config: Dict[str, Any]):
-        """
-        Initialize the LLM Service
+    def __init__(self):
+        """Initialize LLM service"""
+        self.settings = get_settings()
+        self.config = self.settings.llm
+        self.initialized = False
+        self.providers = {}
         
-        Args:
-            config: LLM configuration parameters
-        """
-        self.type = config.get('type', 'local')
-        self.provider = config.get('provider', 'ollama')
-        # self.model = config.get('model', 'llama3:latest')
-        self.model = config.get('model', 'deepseek-coder:latest')
-        self.api_key = config.get('api_key')
-        self.api_url = self._get_api_url()
+        logger.info(f"🔍 LLM config: type={self.config.get('type', 'local')}, provider={self.config.get('provider', 'ollama')}, model={self.config.get('model', 'llama3.2:latest')}")
+        logger.info(f"LLM Service initialized with {self.config.get('provider', 'ollama')} ({self.config.get('type', 'local')})")
         
-        # Fallback models to try if the primary model is not available
-        # Prioritize lighter models
-        self.fallback_models = [
-            "deepseek-coder:latest", # 776 MB
-            "llama3:latest",         # 4.7 GB
-            "llama3.2:latest",       # 2.0 GB
-            "deepseek-coder-v2:latest"  # Last resort (8.9 GB)
-        ]
+    async def initialize(self):
+        """Initialize connections to LLM providers"""
+        if self.initialized:
+            return
         
-        # Request timeout in seconds (increased to 60 seconds)
-        self.request_timeout = 60
-        
-        logger.info(f"🔍 LLM config: type={self.type}, provider={self.provider}, model={self.model}")
-
-        logger.info(f"LLM Service initialized with {self.provider} ({self.type})")
-        
-        # Check if Ollama is available
-        if self.provider == 'ollama' and not self.check_ollama_available():
-            logger.warning("Ollama server is not running. Some features may not work.")
-            logger.info("You can start Ollama by running: python run.py ollama start")
-    
-    def _get_api_url(self) -> str:
-        """Get the API URL based on provider"""
-        if self.type == 'local':
-            if self.provider == 'ollama':
-                return 'http://localhost:11434/api/generate'
-            # Add other local providers here
-        else:
-            if self.provider == 'openai':
-                return 'https://api.openai.com/v1/chat/completions'
-            elif self.provider == 'anthropic':
-                return 'https://api.anthropic.com/v1/messages'
-            # Add other API providers here
-        
-        # Default
-        return 'http://localhost:11434/api/generate'
-    
-    def check_ollama_available(self) -> bool:
-        """Check if Ollama is available"""
         try:
-            response = requests.get('http://localhost:11434/api/tags', timeout=5)  # Increased timeout
-            return response.status_code == 200
-        except Exception:
-            return False
-    
-    def check_model_available(self, model_name: str) -> bool:
-        """Check if a specific model is available in Ollama"""
-        if not self.check_ollama_available():
-            return False
-            
-        try:
-            response = requests.get('http://localhost:11434/api/tags', timeout=5)  # Increased timeout
-            if response.status_code == 200:
-                models = response.json().get('models', [])
-                return any(m.get('name') == model_name for m in models)
-            return False
-        except Exception:
-            return False
-    
-    async def _list_available_models(self) -> List[str]:
-        """List available models"""
-        if self.provider != 'ollama':
-            return []
-            
-        try:
-            async with aiohttp.ClientSession(timeout=aiohttp.ClientTimeout(total=10)) as session:
-                async with session.get('http://localhost:11434/api/tags') as response:
-                    if response.status == 200:
-                        data = await response.json()
-                        models = data.get('models', [])
-                        return [model.get('name') for model in models if model.get('name')]
-                    return []
+            # Get available providers
+            await self._discover_providers()
+            self.initialized = True
         except Exception as e:
-            logger.error(f"Error listing models: {str(e)}")
-            return []
+            logger.error(f"Failed to initialize LLM service: {str(e)}")
+            raise
     
-    async def generate(self, prompt: str, context: Optional[Dict[str, Any]] = None, 
-                      parameters: Optional[Dict[str, Any]] = None) -> str:
-        """
-        Generate text from the language model
-        
-        Args:
-            prompt: The prompt to send to the model
-            context: Optional context information
-            parameters: Optional generation parameters
-            
-        Returns:
-            Generated text from the model
-        """
-        logger.info(f"Generating text with {self.provider} model: {self.model}")
-        
-        # Check if Ollama is running and try to start it if not
-        if self.provider == 'ollama' and not self.check_ollama_available():
-            self._try_start_ollama()
-        
-        # Prepare request
-        if self.type == 'local':
-            return await self._generate_local(prompt, context, parameters)
-        else:
-            return await self._generate_api(prompt, context, parameters)
-    
-    async def _generate_local(self, prompt: str, context: Optional[Dict[str, Any]] = None,
-                             parameters: Optional[Dict[str, Any]] = None) -> str:
-        """Generate text using local model"""
-        # Default parameters
-        params = {
-            'temperature': 0.7,
-            'max_tokens': 2048,
-            'top_p': 0.95,
+    async def _discover_providers(self):
+        """Discover available LLM providers"""
+        # Initialize basic provider info
+        self.providers = {
+            "ollama": {
+                "name": "Ollama",
+                "is_local": True,
+                "base_url": "http://127.0.0.1:11434",
+                "models": []
+            }
         }
         
-        # Update with custom parameters
-        if parameters:
-            params.update(parameters)
-        
-        # Prepare prompt with context
-        full_prompt = self._prepare_prompt(prompt, context)
-        
-        # Different formats based on provider
-        if self.provider == 'ollama':
-            # Ollama request format
-            request_data = {
-                'model': self.model,
-                'prompt': full_prompt,
-                'stream': False,  # Don't stream the response
-                **params
-            }
-            api_url = self.api_url
-        else:
-            # Generic format for other local providers
-            request_data = {
-                'model': self.model,
-                'prompt': full_prompt,
-                **params
-            }
-            api_url = self.api_url
-        
+        # Get available Ollama models
         try:
-            logger.debug(f"Sending request to {api_url} with model {self.model}")
-            timeout = aiohttp.ClientTimeout(total=120)  # 2 min timeout
-            connector = aiohttp.TCPConnector(limit=10)  # Avoids coroutine overlaps
-
-            async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
-                try:
-                    async with session.post(api_url, json=request_data) as response:
-                        if response.status == 200:
-                            response_data = await response.json()
-                            logger.debug(f"✅ Raw response from local model: {response_data}")
-
-                            # Return LLM output
-                            logger.debug(f"Raw response: {response_data}")
-                            return response_data.get('response', '')
+            if "ollama" in self.providers:
+                async with httpx.AsyncClient(timeout=10.0) as client:
+                    response = await client.get(f"{self.providers['ollama']['base_url']}/api/tags")
+                    if response.status_code == 200:
+                        data = response.json()
+                        if "models" in data:
+                            self.providers["ollama"]["models"] = [
+                                {"id": model["name"], "name": model["name"]}
+                                for model in data["models"]
+                            ]
                         else:
-                            error_text = await response.text()
-                            logger.error(f"❌ HTTP {response.status} Error from local model:\n{error_text}")
-
-                            if 'model not found' in error_text.lower():
-                                logger.warning(f"Model '{self.model}' not found. Attempting fallback...")
-                                available_models = await self._list_available_models()
-                                # for fallback_model in self.fallback_models:
-                                #     if fallback_model in available_models:
-                                #         logger.info(f"Trying fallback model: {fallback_model}")
-                                #         self.model = fallback_model
-                                #         request_data['model'] = fallback_model
-                                #         try:
-                                #             async with session.post(api_url, json=request_data) as retry_response:
-                                #                 if retry_response.status == 200:
-                                #                     retry_data = await retry_response.json()
-                                #                     return retry_data.get('response', '')
-                                #                 else:
-                                #                     error_text = await retry_response.text()
-                                #                     logger.warning(f"Fallback failed: {error_text}")
-                                #         except Exception as e:
-                                #             logger.warning(f"Error with fallback model {fallback_model}: {str(e)}")
-                            return f"Error: {response.status} - {error_text}"
-
-                except asyncio.TimeoutError:
-                    logger.error("❌ LLM request timed out.")
-                    return "Error: Timeout from local model"
-                except asyncio.CancelledError:
-                    logger.error("❌ Request was cancelled (possible overlapping coroutines)")
-                    return "Error: Cancelled request"
-                except Exception as e:
-                    logger.error(f"❌ Exception inside session.post: {str(e)}")
-                    return f"Error: {str(e)}"
-
+                            # Handle 0.5.0+ Ollama API response
+                            self.providers["ollama"]["models"] = [
+                                {"id": model["name"], "name": model["name"]}
+                                for model in data.get("models", [])
+                            ]
         except Exception as e:
-            import traceback
-            logger.error("❌ Exception during LLM call:")
-            logger.error(traceback.format_exc())
-            return f"Error calling local model: {str(e)}"
-
-    def _try_start_ollama(self) -> bool:
-        """Try to start Ollama server"""
-        logger.info("Attempting to start Ollama server...")
+            logger.warning(f"Failed to get Ollama models: {str(e)}")
+            # Add default models as fallback
+            self.providers["ollama"]["models"] = [
+                {"id": "llama3.2:latest", "name": "Llama 3.2"},
+                {"id": "llama3:latest", "name": "Llama 3"},
+                {"id": "llama2:latest", "name": "Llama 2"}
+            ]
+    
+    def get_providers(self) -> List[Dict[str, Any]]:
+        """Get list of available LLM providers and models"""
+        providers_list = []
+        
+        for provider_id, provider_info in self.providers.items():
+            providers_list.append({
+                "name": provider_info["name"],
+                "is_local": provider_info["is_local"],
+                "models": provider_info["models"]
+            })
+        
+        return providers_list
+    
+    async def generate(
+        self, 
+        prompt: str, 
+        provider: Optional[str] = None,
+        model: Optional[str] = None,
+        parameters: Optional[Dict[str, Any]] = None
+    ) -> str:
+        """Generate text from a prompt using the specified LLM"""
+        if not self.initialized:
+            await self.initialize()
+        
+        # Use parameters from request or fallback to defaults
+        provider = provider or self.config.get("provider", "ollama")
+        model = model or self.config.get("model", "llama3.2:latest")
+        parameters = parameters or {}
+        
+        # Set default parameters if not provided
+        if "temperature" not in parameters:
+            parameters["temperature"] = 0.7
+        if "max_tokens" not in parameters:
+            parameters["max_tokens"] = 2048
+        
+        # Generate based on provider
+        if provider.lower() == "ollama":
+            return await self._generate_ollama(prompt, model, parameters)
+        else:
+            raise ValueError(f"Unsupported provider: {provider}")
+    
+    async def _generate_ollama(self, prompt: str, model: str, parameters: Dict[str, Any]) -> str:
+        """Generate text using Ollama API"""
+        base_url = self.providers["ollama"]["base_url"]
+        
+        # Map our generic parameters to Ollama specific ones
+        ollama_params = {
+            "model": model,
+            "prompt": prompt,
+            "stream": False,
+            "options": {
+                "temperature": parameters.get("temperature", 0.7),
+                "num_predict": parameters.get("max_tokens", 2048)
+            }
+        }
         
         try:
-            # Path to Ollama helper script
-            script_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
-            ollama_script = os.path.join(script_dir, "tools", "ollama_helper.py")
-            
-            if os.path.exists(ollama_script):
-                subprocess.run([sys.executable, ollama_script, "start"], 
-                              capture_output=True, timeout=20)  # Increased timeout
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    f"{base_url}/api/generate",
+                    json=ollama_params
+                )
                 
-                # Check if it started successfully
-                if self.check_ollama_available():
-                    logger.info("Successfully started Ollama server")
-                    return True
+                if response.status_code == 200:
+                    data = response.json()
+                    return data.get("response", "")
+                else:
+                    error_msg = f"Ollama API error: {response.status_code} - {response.text}"
+                    logger.error(error_msg)
+                    raise Exception(error_msg)
         except Exception as e:
-            logger.error(f"Error trying to start Ollama: {str(e)}")
-        
-        logger.warning("Failed to start Ollama server")
-        return False
-    
-    async def _generate_api(self, prompt: str, context: Optional[Dict[str, Any]] = None,
-                           parameters: Optional[Dict[str, Any]] = None) -> str:
-        """Generate text using API-based model"""
-        # Default parameters
-        params = {
-            'temperature': 0.7,
-            'max_tokens': 2048,
-            'top_p': 0.95,
-        }
-        
-        # Update with custom parameters
-        if parameters:
-            params.update(parameters)
-        
-        # Prepare headers
-        headers = {
-            'Content-Type': 'application/json',
-        }
-        
-        if self.api_key:
-            if self.provider == 'openai':
-                headers['Authorization'] = f"Bearer {self.api_key}"
-            elif self.provider == 'anthropic':
-                headers['x-api-key'] = self.api_key
-        
-        # Prepare prompt with context
-        full_prompt = self._prepare_prompt(prompt, context)
-        
-        # Prepare request data based on provider
-        if self.provider == 'openai':
-            request_data = {
-                'model': self.model,
-                'messages': [{'role': 'user', 'content': full_prompt}],
-                'temperature': params.get('temperature'),
-                'max_tokens': params.get('max_tokens'),
-                'top_p': params.get('top_p'),
-            }
-        elif self.provider == 'anthropic':
-            request_data = {
-                'model': self.model,
-                'messages': [{'role': 'user', 'content': full_prompt}],
-                'temperature': params.get('temperature'),
-                'max_tokens': params.get('max_tokens'),
-            }
-        else:
-            # Default format
-            request_data = {
-                'model': self.model,
-                'prompt': full_prompt,
-                **params
-            }
-        
-        try:
-            # Use increased timeout
-            timeout = aiohttp.ClientTimeout(total=120)  # 2 min timeout
-            connector = aiohttp.TCPConnector(limit=10)  # avoids concurrency bugs
-
-            async with aiohttp.ClientSession(timeout=timeout, connector=connector) as session:
-                async with session.post(self.api_url, headers=headers, json=request_data) as response:
-                    if response.status == 200:
-                        response_data = await response.json()
-                        
-                        # Extract text based on provider
-                        if self.provider == 'openai':
-                            return response_data.get('choices', [{}])[0].get('message', {}).get('content', '')
-                        elif self.provider == 'anthropic':
-                            return response_data.get('content', [{}])[0].get('text', '')
-                        else:
-                            return response_data.get('response', '')
-                    else:
-                        error_text = await response.text()
-                        logger.error(f"Error from API: {error_text}")
-                        return f"Error: {response.status} - {error_text}"
-        except Exception as e:
-            logger.error(f"Error calling API: {str(e)}")
-            return f"Error: {str(e)}"
-    
-    def _prepare_prompt(self, prompt: str, context: Optional[Dict[str, Any]] = None) -> str:
-        """Prepare prompt with context"""
-        if context is None:
-            return prompt
-        
-        if self.provider == 'ollama' and 'deepseek-coder' in self.model:
-            # Special formatting for deepseek-coder model
-            base_prompt = """You are a 3D modeling assistant specialized in Blender Python scripting.
-            
-Focus on generating precise, efficient, and well-structured Python code for Blender.
-When providing solutions:
-- Use clean, optimized code
-- Add detailed comments
-- Follow Blender Python API best practices
-- Ensure the code is ready to run in Blender without modifications
-
-"""
-            return base_prompt + prompt
-        
-        # Add context to prompt
-        if 'scene' in context:
-            scene_desc = json.dumps(context['scene'], indent=2)
-            prompt = f"Scene information:\n{scene_desc}\n\n{prompt}"
-        
-        if 'history' in context:
-            history_str = "\n".join([f"- {item}" for item in context['history']])
-            prompt = f"Previous actions:\n{history_str}\n\n{prompt}"
-        
-        return prompt
-    
-    async def classify_task(self, instruction: str) -> Dict[str, Any]:
-        """
-        Classify a user instruction into a structured task
-        
-        Args:
-            instruction: User instruction
-            
-        Returns:
-            Structured task information
-        """
-        prompt = f"""Analyze the following instruction and convert it into a structured task for a 3D scene generation agent.
-
-Instruction: {instruction}
-
-Output a JSON object with the following structure:
-{{
-  "task_type": "scene_generation" | "model_creation" | "animation" | "modification" | "analysis",
-  "description": "Brief description of what needs to be done",
-  "parameters": {{
-    // Task-specific parameters
-  }}
-}}
-
-JSON Response:"""
-        
-        response = await self.generate(prompt, parameters={'temperature': 0.2})
-        
-        # Check for error response
-        if isinstance(response, str) and response.startswith("Error:"):
-            logger.warning(f"LLM error during task classification: {response}")
-            return {
-                "task_type": "scene_generation",
-                "description": instruction,
-                "parameters": {}
-            }
-        
-        try:
-            # Try to parse the response as JSON
-            result = json.loads(response)
-            return result
-        except json.JSONDecodeError:
-            # If the response is not valid JSON, try to extract JSON from it
-            import re
-            
-            # Look for JSON pattern
-            json_match = re.search(r'({[\s\S]*})', response)
-            if json_match:
-                try:
-                    result = json.loads(json_match.group(1))
-                    return result
-                except json.JSONDecodeError:
-                    pass
-            
-            # Return a fallback result
-            logger.warning(f"Failed to parse LLM response as JSON: {response}")
-            return {
-                "task_type": "scene_generation",
-                "description": instruction,
-                "parameters": {}
-            }
-    
-    async def plan_task_execution(self, task: Dict[str, Any], available_tools: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
-        """
-        Plan the execution of a task using available tools
-        
-        Args:
-            task: Task information
-            available_tools: List of available tools
-            
-        Returns:
-            List of steps to execute
-        """
-        # Prepare tool information
-        tools_info = json.dumps([
-            {
-                "name": tool["name"],
-                "description": tool["description"]
-            }
-            for tool in available_tools
-        ], indent=2)
-        
-        # Prepare task information
-        task_info = json.dumps(task, indent=2)
-        
-        # Create prompt
-        prompt = f"""Given the following task and available tools, create a step-by-step execution plan.
-
-Task: {task_info}
-
-Available Tools: {tools_info}
-
-Output a JSON array of steps, where each step has the following structure:
-{{
-  "tool_name": "name of the tool to use",
-  "parameters": {{
-    // Tool-specific parameters
-  }},
-  "description": "Description of what this step does"
-}}
-
-Ensure each step can be executed by one of the available tools. If the task cannot be completed with the available tools, explain why in the output.
-
-JSON Response:"""
-        
-        response = await self.generate(prompt, parameters={'temperature': 0.2})
-        
-        # Check for error response
-        if isinstance(response, str) and response.startswith("Error:"):
-            logger.warning(f"LLM error during planning: {response}")
-            return [{
-                "tool_name": "scene_generator",
-                "parameters": {
-                    "description": task.get("description", "Create a simple 3D scene"),
-                    "style": "basic"
-                },
-                "description": f"Generate a scene based on the description: {task.get('description', 'Create a simple 3D scene')}"
-            }]
-        
-        try:
-            # Try to parse the response as JSON
-            result = json.loads(response)
-            if isinstance(result, list):
-                return result
-            elif isinstance(result, dict) and 'steps' in result:
-                return result['steps']
-            else:
-                return [result]
-        except json.JSONDecodeError:
-            # If the response is not valid JSON, try to extract JSON from it
-            import re
-            
-            # Look for JSON array pattern
-            json_match = re.search(r'(\[[\s\S]*\])', response)
-            if json_match:
-                try:
-                    result = json.loads(json_match.group(1))
-                    return result
-                except json.JSONDecodeError:
-                    pass
-            
-            # Return a fallback result
-            logger.warning(f"Failed to parse LLM response as JSON: {response}")
-            return [{
-                "tool_name": "scene_generator",
-                "parameters": {
-                    "description": task.get("description", "Create a simple 3D scene")
-                },
-                "description": f"Generate a scene based on the description: {task.get('description', 'Create a simple 3D scene')}"
-            }]
+            logger.error(f"Error generating text with Ollama: {str(e)}")
+            raise

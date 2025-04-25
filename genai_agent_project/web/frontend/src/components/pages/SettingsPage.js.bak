@@ -1,5 +1,4 @@
 import React, { useState, useEffect } from 'react';
-import axios from 'axios';
 import { 
   Box, 
   Typography, 
@@ -15,11 +14,7 @@ import {
   AccordionSummary,
   AccordionDetails,
   Alert,
-  Snackbar,
-  Select,
-  MenuItem,
-  FormControl,
-  InputLabel
+  Snackbar
 } from '@mui/material';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import { getConfig, updateConfig } from '../../services/api';
@@ -38,30 +33,7 @@ const SettingsPage = ({ addNotification, darkMode, toggleDarkMode }) => {
   const [saveSuccess, setSaveSuccess] = useState(false);
   
   // Fetch configuration on mount
-  
-
-  // Fetch LLM providers from API
-  const [providers, setProviders] = useState([]);
-  const [loadingProviders, setLoadingProviders] = useState(false);
-  
-  // Fetch providers
-  const fetchProviders = async () => {
-    try {
-      setLoadingProviders(true);
-      const response = await axios.get('/api/llm/providers');
-      setProviders(response.data);
-    } catch (error) {
-      console.error('Failed to fetch LLM providers:', error);
-    } finally {
-      setLoadingProviders(false);
-    }
-  };
-  
-  // Fetch providers on mount
   useEffect(() => {
-    fetchProviders();
-  }, []);
-useEffect(() => {
     const fetchConfig = async () => {
       try {
         setLoading(true);
@@ -214,58 +186,25 @@ useEffect(() => {
               
               <Grid container spacing={2}>
                 <Grid item xs={12} sm={6}>
-                  <FormControl fullWidth variant="outlined">
-                    <InputLabel id="provider-label">Provider</InputLabel>
-                    <Select
-                      labelId="provider-label"
-                      id="provider-select"
-                      value={modelConfig.provider}
-                      label="Provider"
-                      onChange={(e) => setModelConfig({ ...modelConfig, provider: e.target.value, model: '' })}
-                    >
-                      {loadingProviders ? (
-                        <MenuItem disabled>Loading providers...</MenuItem>
-                      ) : providers.length === 0 ? (
-                        <MenuItem disabled>No providers available</MenuItem>
-                      ) : (
-                        providers.map((provider) => (
-                          <MenuItem key={provider.name} value={provider.name.toLowerCase()}>
-                            {provider.name} {provider.is_local ? "(Local)" : ""}
-                          </MenuItem>
-                        ))
-                      )}
-                    </Select>
-                  </FormControl>
+                  <TextField
+                    label="Provider"
+                    fullWidth
+                    variant="outlined"
+                    value={modelConfig.provider}
+                    onChange={(e) => setModelConfig({ ...modelConfig, provider: e.target.value })}
+                    helperText="e.g., ollama, openai"
+                  />
                 </Grid>
                 
                 <Grid item xs={12} sm={6}>
-                  <FormControl fullWidth variant="outlined">
-                    <InputLabel id="model-label">Model</InputLabel>
-                    <Select
-                      labelId="model-label"
-                      id="model-select"
-                      value={modelConfig.model}
-                      label="Model"
-                      onChange={(e) => setModelConfig({ ...modelConfig, model: e.target.value })}
-                      disabled={!modelConfig.provider}
-                    >
-                      {loadingProviders ? (
-                        <MenuItem disabled>Loading models...</MenuItem>
-                      ) : !modelConfig.provider ? (
-                        <MenuItem disabled>Select a provider first</MenuItem>
-                      ) : (
-                        providers
-                          .find(p => p.name.toLowerCase() === modelConfig.provider.toLowerCase())
-                          ?.models.map((model) => (
-                            <MenuItem key={model.id} value={model.id}>
-                              {model.name}
-                            </MenuItem>
-                          )) || (
-                            <MenuItem disabled>No models available</MenuItem>
-                          )
-                      )}
-                    </Select>
-                  </FormControl>
+                  <TextField
+                    label="Model"
+                    fullWidth
+                    variant="outlined"
+                    value={modelConfig.model}
+                    onChange={(e) => setModelConfig({ ...modelConfig, model: e.target.value })}
+                    helperText="e.g., deepseek-coder:latest, llama3:latest"
+                  />
                 </Grid>
                 
                 <Grid item xs={12}>

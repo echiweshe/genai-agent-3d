@@ -21,6 +21,7 @@ from pydantic import BaseModel
 
 # Import routes
 from genai_agent.services.llm_api_routes import add_llm_routes
+from genai_agent.services.settings_api import add_settings_routes
 try:
     from routes.blender_execute import router as blender_router
 except ImportError as e:
@@ -56,6 +57,7 @@ app = FastAPI(
 
 # Add LLM routes
 add_llm_routes(app)
+add_settings_routes(app)
 
 # Configure CORS
 app.add_middleware(

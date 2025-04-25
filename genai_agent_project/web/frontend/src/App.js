@@ -19,6 +19,9 @@ import DiagramsPage from './components/pages/DiagramsPage';
 import SettingsPage from './components/pages/SettingsPage';
 import BlenderScriptsPage from './components/pages/BlenderScriptsPage';
 
+// Pages Import (continued)
+import LLMTestPage from './components/pages/LLMTestPage';
+
 // Services
 import { getStatus } from './services/api';
 import websocketService, { WS_STATUS } from './services/websocket';
@@ -236,6 +239,7 @@ function App() {
                 darkMode={darkMode}
                 toggleDarkMode={toggleDarkMode}
               />} />
+          <Route path="/llm-test" element={<LLMTestPage />} />
             </Routes>
           </Box>
         </Box>
