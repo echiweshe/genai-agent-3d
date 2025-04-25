@@ -20,7 +20,6 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 # Import routes
-from genai_agent.services.llm_api_routes import add_llm_routes
 try:
     from routes.blender_execute import router as blender_router
 except ImportError as e:
@@ -53,9 +52,6 @@ app = FastAPI(
     description="API for interacting with the GenAI Agent 3D system",
     version="0.1.0"
 )
-
-# Add LLM routes
-add_llm_routes(app)
 
 # Configure CORS
 app.add_middleware(
