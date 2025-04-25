@@ -17,10 +17,11 @@ class WebSocketService {
     this.listeners = new Map();
     this.reconnectTimer = null;
     this.reconnectAttempts = 0;
-    this.maxReconnectAttempts = 5;
-    this.reconnectInterval = 2000; // 2 seconds
+    this.maxReconnectAttempts = 10; // Increased from 5
+    this.reconnectInterval = 3000; // Increased from 2 seconds
     this.pingInterval = null;
     this.url = null;
+    this.connectPromise = null;
   }
 
   /**
@@ -28,8 +29,13 @@ class WebSocketService {
    * @param {string} url - WebSocket server URL
    * @returns {Promise} Promise that resolves when connected
    */
-  connect(url = 'ws://localhost:8000/ws') {
-    return new Promise((resolve, reject) => {
+  connect(url = window.location.protocol === 'https:' ? 'wss://' + window.location.host + '/ws' : 'ws://' + window.location.host.replace('3000', '8000') + '/ws') {
+    // Return existing promise if already connecting
+    if (this.connectPromise && this.status === WS_STATUS.CONNECTING) {
+      return this.connectPromise;
+    }
+    
+    this.connectPromise = new Promise((resolve, reject) => {
       if (this.socket && this.status === WS_STATUS.OPEN) {
         resolve();
         return;
@@ -48,6 +54,7 @@ class WebSocketService {
           this._notifyStatusListeners();
           this.reconnectAttempts = 0;
           this._startPingInterval();
+          this.connectPromise = null;
           resolve();
         };
 
@@ -60,27 +67,35 @@ class WebSocketService {
           }
         };
 
-        this.socket.onclose = () => {
-          console.log('WebSocket disconnected');
+        this.socket.onclose = (event) => {
+          console.log('WebSocket disconnected', event.code, event.reason);
           this.status = WS_STATUS.CLOSED;
           this._notifyStatusListeners();
           this._stopPingInterval();
-          this._scheduleReconnect();
+          this.connectPromise = null;
+          // Only try to reconnect if it wasn't closed intentionally
+          if (event.code !== 1000) {
+            this._scheduleReconnect();
+          }
         };
 
         this.socket.onerror = (error) => {
           console.error('WebSocket error:', error);
           this.status = WS_STATUS.ERROR;
           this._notifyStatusListeners();
+          this.connectPromise = null;
           reject(error);
         };
       } catch (error) {
         console.error('Error creating WebSocket:', error);
         this.status = WS_STATUS.ERROR;
         this._notifyStatusListeners();
+        this.connectPromise = null;
         reject(error);
       }
     });
+    
+    return this.connectPromise;
   }
 
   /**
