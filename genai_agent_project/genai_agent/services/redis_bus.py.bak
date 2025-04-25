@@ -1,4 +1,3 @@
-
 """
 Redis Message Bus - Handles communication between services
 """
@@ -26,47 +25,73 @@ class RedisMessageBus:
         """
         # Handle case when redis_url is a dictionary
         if isinstance(redis_url, dict):
-            self.redis_config = redis_url.copy()  # Make a copy to avoid reference issues
+            self.redis_config = redis_url
             # Extract basic info for logging
-            self.redis_url = str(redis_url.get('host', 'localhost'))  # Ensure it's a string
-            self.redis_port = int(redis_url.get('port', 6379))  # Ensure it's an integer
+            self.redis_url = redis_url.get('host', 'localhost')
+            self.redis_port = redis_url.get('port', 6379)
+            
+            # Log full configuration 
+            logger.info(f"Redis Message Bus initialized with {self.redis_url}:{self.redis_port}")
         else:
-            self.redis_url = str(redis_url)  # Ensure it's a string
-            self.redis_port = int(redis_port)  # Ensure it's an integer
+            self.redis_url = redis_url
+            self.redis_port = redis_port
             self.redis_db = redis_db
+            
+            # Create standard config
             self.redis_config = {
                 'host': self.redis_url,
                 'port': self.redis_port,
                 'db': self.redis_db
             }
             
+            logger.info(f"Redis Message Bus initialized with {self.redis_url}:{self.redis_port}")
+        
+        # Initialize connection vars
         self.redis = None
         self.pubsub = None
         self.subscriptions = {}
         self.running = False
         self.listener_task = None
-        
-        logger.info(f"Redis Message Bus initialized with {self.redis_url}:{self.redis_port}")
+    
     
     async def connect(self):
         """Connect to Redis server"""
         if self.redis is None:
             try:
-                # Ensure we have string and int types for host and port
-                host = str(self.redis_url)
-                port = int(self.redis_port)
-                db = int(self.redis_config.get('db', 0))
-                
-                # Create connection with proper types
-                self.redis = redis.Redis(
-                    host=host,
-                    port=port,
-                    db=db,
-                    decode_responses=True
-                )
+                # Handle case when redis_url is a dictionary
+                if isinstance(self.redis_url, dict):
+                    # Extract connection parameters
+                    host = str(self.redis_url.get('host', 'localhost'))
+                    port = int(self.redis_url.get('port', 6379))
+                    db = int(self.redis_url.get('db', 0))
+                    
+                    # Create connection with proper types
+                    self.redis = redis.Redis(
+                        host=host,
+                        port=port,
+                        db=db,
+                        decode_responses=True
+                    )
+                else:
+                    # Standard connection
+                    self.redis = redis.Redis(
+                        host=self.redis_url,
+                        port=self.redis_port,
+                        db=self.redis_db,
+                        decode_responses=True
+                    )
                 
                 # Test connection
                 await self.redis.ping()
+                
+                # Extract host and port for logging
+                if isinstance(self.redis_url, dict):
+                    host = self.redis_url.get('host', 'localhost')
+                    port = self.redis_url.get('port', 6379)
+                else:
+                    host = self.redis_url
+                    port = self.redis_port
+                
                 logger.info(f"Connected to Redis at {host}:{port}")
                 
                 # Initialize pubsub
@@ -74,8 +99,7 @@ class RedisMessageBus:
             except Exception as e:
                 logger.error(f"Error connecting to Redis: {str(e)}")
                 raise
-    
-    async def disconnect(self):
+async def disconnect(self):
         """Disconnect from Redis server"""
         if self.redis is not None:
             # Stop listener if running

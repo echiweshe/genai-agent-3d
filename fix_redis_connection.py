@@ -1,5 +1,23 @@
-
+#!/usr/bin/env python
 """
+Direct fix for the Redis connection error in GenAI Agent 3D
+
+This script fixes the "inet_pton() argument 2 must be str, not dict" error
+by updating the RedisMessageBus class to handle dictionary configurations.
+"""
+
+import os
+import sys
+import shutil
+import subprocess
+
+# Get project root directory
+script_dir = os.path.dirname(os.path.abspath(__file__))
+project_dir = os.path.join(script_dir, "genai_agent_project")
+services_dir = os.path.join(project_dir, "genai_agent", "services")
+
+# Updated redis_bus.py content
+redis_bus_content = '''"""
 Redis Message Bus - Handles communication between services
 """
 
@@ -26,38 +44,44 @@ class RedisMessageBus:
         """
         # Handle case when redis_url is a dictionary
         if isinstance(redis_url, dict):
-            self.redis_config = redis_url.copy()  # Make a copy to avoid reference issues
+            self.redis_config = redis_url
             # Extract basic info for logging
-            self.redis_url = str(redis_url.get('host', 'localhost'))  # Ensure it's a string
-            self.redis_port = int(redis_url.get('port', 6379))  # Ensure it's an integer
+            self.redis_url = redis_url.get('host', 'localhost')
+            self.redis_port = redis_url.get('port', 6379)
+            
+            # Log full configuration 
+            logger.info(f"Redis Message Bus initialized with {self.redis_url}:{self.redis_port}")
         else:
-            self.redis_url = str(redis_url)  # Ensure it's a string
-            self.redis_port = int(redis_port)  # Ensure it's an integer
+            self.redis_url = redis_url
+            self.redis_port = redis_port
             self.redis_db = redis_db
+            
+            # Create standard config
             self.redis_config = {
                 'host': self.redis_url,
                 'port': self.redis_port,
                 'db': self.redis_db
             }
             
+            logger.info(f"Redis Message Bus initialized with {self.redis_url}:{self.redis_port}")
+        
+        # Initialize connection vars
         self.redis = None
         self.pubsub = None
         self.subscriptions = {}
         self.running = False
         self.listener_task = None
-        
-        logger.info(f"Redis Message Bus initialized with {self.redis_url}:{self.redis_port}")
     
     async def connect(self):
         """Connect to Redis server"""
         if self.redis is None:
             try:
-                # Ensure we have string and int types for host and port
-                host = str(self.redis_url)
-                port = int(self.redis_port)
-                db = int(self.redis_config.get('db', 0))
+                # Extract connection params from config
+                host = self.redis_url 
+                port = self.redis_port
+                db = self.redis_config.get('db', 0)
                 
-                # Create connection with proper types
+                # Create connection with extracted params
                 self.redis = redis.Redis(
                     host=host,
                     port=port,
@@ -223,3 +247,66 @@ def get_message_bus(redis_url="localhost", redis_port=6379, redis_db=0):
         _message_bus = RedisMessageBus(redis_url, redis_port, redis_db)
     
     return _message_bus
+'''
+
+print("=" * 80)
+print("GenAI Agent 3D - Redis Connection Fix".center(80))
+print("=" * 80)
+print()
+
+# Fix redis_bus.py
+print("Fixing Redis Message Bus to handle dictionary configuration...")
+
+redis_bus_path = os.path.join(services_dir, "redis_bus.py")
+if os.path.exists(redis_bus_path):
+    # Create a backup
+    backup_path = f"{redis_bus_path}.bak"
+    shutil.copy2(redis_bus_path, backup_path)
+    print(f"Created backup at {backup_path}")
+    
+    # Write the updated file
+    with open(redis_bus_path, 'w') as f:
+        f.write(redis_bus_content)
+    
+    print("✅ Successfully updated redis_bus.py")
+else:
+    print(f"❌ Could not find {redis_bus_path}")
+    sys.exit(1)
+
+print("\nFix applied successfully!")
+print("\nNext steps:")
+print("1. Restart all services with: cd genai_agent_project")
+print("2. Run: python manage_services.py restart all")
+print("3. Access the web interface at: http://localhost:3000")
+
+# Ask if user wants to restart services
+restart = input("\nDo you want to restart services now? (y/n): ")
+if restart.lower() == 'y':
+    print("\nRestarting services...")
+    try:
+        # Windows
+        if sys.platform == "win32":
+            subprocess.run([
+                "cmd", "/c", 
+                f"cd {project_dir} && venv\\Scripts\\activate.bat && python manage_services.py restart all"
+            ], check=True)
+        # Linux/macOS
+        else:
+            subprocess.run([
+                "bash", "-c",
+                f"cd {project_dir} && source venv/bin/activate && python manage_services.py restart all"
+            ], check=True)
+            
+        print("\n✅ Services restarted successfully!")
+        print("\nYou can access the web interface at: http://localhost:3000")
+    except subprocess.CalledProcessError as e:
+        print(f"\n❌ Error restarting services: {e}")
+        print("\nYou can try to manually restart services with:")
+        print(f"cd {project_dir}")
+        
+        if sys.platform == "win32":
+            print("venv\\Scripts\\activate")
+        else:
+            print("source venv/bin/activate")
+            
+        print("python manage_services.py restart all")
