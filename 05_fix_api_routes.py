@@ -59,12 +59,12 @@ class Provider(BaseModel):
 # Routes
 @router.get("/providers")
 async def get_providers():
-    """Get available LLM providers and models"""
+    \"\"\"Get available LLM providers and models\"\"\"
     return llm_service.get_providers()
 
 @router.post("/generate", response_model=GenerateResponse)
 async def generate_text(request: GenerateRequest):
-    """Generate text from a prompt using the specified LLM"""
+    \"\"\"Generate text from a prompt using the specified LLM\"\"\"
     try:
         if not request.prompt:
             raise HTTPException(status_code=400, detail="Prompt is required")

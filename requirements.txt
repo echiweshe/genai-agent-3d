@@ -1,0 +1,8 @@
+# GenAI Agent 3D - LLM Integration Requirements
+httpx>=0.23.0
+pydantic>=1.9.0
+fastapi>=0.95.0
+redis>=4.5.0
+pyyaml>=6.0
+requests>=2.28.0
+uvicorn>=0.21.0

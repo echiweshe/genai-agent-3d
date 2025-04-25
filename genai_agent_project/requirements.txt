@@ -39,3 +39,14 @@ python-multipart
 
 aiofiles
 python-dotenv
+
+# Direct access to LLms
+anthropic 
+openai 
+google-generativeai 
+ollama
+
+# GenAI Agent 3D - LLM Integration Requirements
+httpx>=0.23.0
+pydantic>=1.9.0
+

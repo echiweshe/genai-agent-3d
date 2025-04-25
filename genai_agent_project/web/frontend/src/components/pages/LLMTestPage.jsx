@@ -1,26 +1,21 @@
-
 import React from 'react';
-import { Container, Typography, Box } from '@mui/material';
+import { Box, Typography } from '@mui/material';
 import SimpleLLMTester from '../SimpleLLMTester';
 
-/**
- * Page for testing LLM functionality
- */
-function LLMTestPage() {
+const LLMTestPage = () => {
   return (
-    <Container maxWidth="lg">
-      <Box sx={{ my: 4 }}>
-        <Typography variant="h4" component="h1" gutterBottom align="center">
-          LLM Testing Page
-        </Typography>
-        <Typography variant="body1" paragraph align="center">
-          Use this page to test the LLM functionality
-        </Typography>
-        
-        <SimpleLLMTester />
-      </Box>
-    </Container>
+    <Box sx={{ p: 3, height: '100%', overflow: 'auto' }}>
+      <Typography variant="h4" gutterBottom>
+        LLM Testing
+      </Typography>
+      
+      <Typography variant="body1" paragraph>
+        Test the LLM integration by generating text with different models.
+      </Typography>
+      
+      <SimpleLLMTester />
+    </Box>
   );
-}
+};
 
 export default LLMTestPage;

@@ -1,30 +1,9 @@
-# LLM Configuration
-
-# LLM Type: local or cloud
-type: local
-
-# Provider: ollama, anthropic, openai, etc.
-provider: ollama
-
-# Default model to use
 model: llama3.2:latest
-
-# Generation parameters
 parameters:
-  temperature: 0.7
   max_tokens: 2048
-
-# Provider-specific configuration
+  temperature: 0.7
+provider: ollama
 providers:
   ollama:
     base_url: http://127.0.0.1:11434
-    # Add any other Ollama-specific settings here
-  
-  # Example for other providers (commented out)
-  # anthropic:
-  #   api_key: your-api-key
-  #   base_url: https://api.anthropic.com
-  
-  # openai:
-  #   api_key: your-api-key
-  #   organization: your-org-id
+type: local

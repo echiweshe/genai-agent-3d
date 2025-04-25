@@ -1,4 +1,3 @@
-// Simple LLM Tester Component for GenAI Agent 3D
 import React, { useState, useEffect } from 'react';
 import { 
   Box, 
@@ -36,7 +35,7 @@ function SimpleLLMTester() {
   // Update models when provider changes
   useEffect(() => {
     if (provider) {
-      const selectedProvider = providers.find(p => p.name === provider);
+      const selectedProvider = providers.find(p => p.name.toLowerCase() === provider.toLowerCase());
       if (selectedProvider && selectedProvider.models) {
         setModels(selectedProvider.models);
         if (selectedProvider.models.length > 0) {
@@ -59,7 +58,7 @@ function SimpleLLMTester() {
       
       // Set default provider and model
       if (providersData.length > 0) {
-        setProvider(providersData[0].name);
+        setProvider(providersData[0].name.toLowerCase());
       }
     } catch (err) {
       console.error('Error fetching providers:', err);
@@ -83,7 +82,8 @@ function SimpleLLMTester() {
       
       const data = {
         prompt,
-        model, // This might be ignored on the backend depending on implementation
+        provider, 
+        model,
         parameters: {
           temperature: 0.7,
           max_tokens: 2048
@@ -133,7 +133,7 @@ function SimpleLLMTester() {
             disabled={loading || providers.length === 0}
           >
             {providers.map((p) => (
-              <MenuItem key={p.name} value={p.name}>{p.name}</MenuItem>
+              <MenuItem key={p.name} value={p.name.toLowerCase()}>{p.name}</MenuItem>
             ))}
           </Select>
         </FormControl>
@@ -159,10 +159,11 @@ function SimpleLLMTester() {
           multiline
           rows={4}
           fullWidth
+          variant="outlined"
           value={prompt}
           onChange={(e) => setPrompt(e.target.value)}
           disabled={loading}
-          sx={{ mb: 2 }}
+          sx={{ mb: 3 }}
         />
         
         <Button
@@ -170,7 +171,8 @@ function SimpleLLMTester() {
           color="primary"
           onClick={handleGenerate}
           disabled={loading || !prompt.trim()}
-          startIcon={loading && <CircularProgress size={20} color="inherit" />}
+          startIcon={loading ? <CircularProgress size={20} color="inherit" /> : null}
+          fullWidth
         >
           {loading ? 'Generating...' : 'Generate'}
         </Button>
@@ -179,18 +181,18 @@ function SimpleLLMTester() {
       {response && (
         <Paper elevation={3} sx={{ p: 3 }}>
           <Typography variant="h6" gutterBottom>
-            Response:
+            Response
           </Typography>
-          <Box
-            sx={{
-              p: 2,
-              bgcolor: 'grey.100',
-              borderRadius: 1,
-              whiteSpace: 'pre-wrap',
-              overflow: 'auto',
-              maxHeight: 400
-            }}
-          >
+          
+          <Box sx={{ 
+            bgcolor: 'background.paper', 
+            p: 2, 
+            borderRadius: 1, 
+            maxHeight: '400px',
+            overflow: 'auto',
+            whiteSpace: 'pre-wrap',
+            fontFamily: 'monospace'
+          }}>
             {response}
           </Box>
         </Paper>
