@@ -131,6 +131,20 @@ async def get_providers():
                         "context_length": 200000,
                         "input_cost": 0.000003,
                         "output_cost": 0.000015
+                    },
+                    {
+                        "id": "claude-3-haiku-20240307",
+                        "name": "Claude 3 Haiku",
+                        "context_length": 200000,
+                        "input_cost": 0.00000025,
+                        "output_cost": 0.00000125
+                    },
+                    {
+                        "id": "claude-3.5-sonnet-20250626", 
+                        "name": "Claude 3.5 Sonnet",
+                        "context_length": 200000,
+                        "input_cost": 0.000005,
+                        "output_cost": 0.000025
                     }
                 ]
             }

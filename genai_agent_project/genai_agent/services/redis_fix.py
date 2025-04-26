@@ -1,9 +1,12 @@
 #!/usr/bin/env python3
 """
-Fix for the RedisMessageBus ping attribute issue in GenAI Agent 3D
+Redis Message Bus Ping Fix
+
+This script adds the missing ping method to the RedisMessageBus class.
 """
 
 import os
+import sys
 import re
 import shutil
 from datetime import datetime
@@ -15,23 +18,19 @@ def backup_file(file_path):
     print(f"✅ Created backup at {backup_path}")
     return backup_path
 
-def fix_redis_ping():
-    """Add the ping method to RedisMessageBus class"""
-    file_path = "genai_agent_project/genai_agent/services/redis_bus.py"
+def add_ping_method():
+    """Add the ping method to the RedisMessageBus class"""
+    # Find the redis_bus.py file
+    file_path = "C:\\ZB_Share\\Labs\\src\\CluadeMCP\\genai-agent-3d\\genai_agent_project\\genai_agent\\services\\redis_bus.py"
     
     if not os.path.exists(file_path):
-        # Try alternate path for direct execution
-        file_path = os.path.join("C:", os.sep, "ZB_Share", "Labs", "src", "CluadeMCP", 
-                               "genai-agent-3d", "genai_agent_project", "genai_agent", 
-                               "services", "redis_bus.py")
-        if not os.path.exists(file_path):
-            print(f"❌ Could not find redis_bus.py")
-            return False
+        print(f"❌ Could not find redis_bus.py at {file_path}")
+        return False
     
     # Create backup
     backup_file(file_path)
     
-    with open(file_path, 'r', encoding='utf-8') as f:
+    with open(file_path, 'r') as f:
         content = f.read()
     
     # Check if the RedisMessageBus class exists
@@ -39,7 +38,7 @@ def fix_redis_ping():
         print(f"❌ Could not find RedisMessageBus class in {file_path}")
         return False
     
-    # Check if ping method already exists
+    # Check if the ping method already exists
     if "async def ping" in content:
         print("✅ Ping method already exists")
         return True
@@ -53,8 +52,8 @@ def fix_redis_ping():
     
     insertion_point = disconnect_method_match.end()
     
-    # Define the ping method - using triple quotes properly
-    ping_method = '''
+    # Define the ping method
+    ping_method = """
     
     async def ping(self):
         """Check if Redis connection is alive"""
@@ -70,13 +69,13 @@ def fix_redis_ping():
         except Exception as e:
             logger.error(f"Redis ping failed: {str(e)}")
             return {"status": "error", "message": str(e)}
-'''
+"""
     
     # Insert the ping method
     modified_content = content[:insertion_point] + ping_method + content[insertion_point:]
     
     # Write back to file
-    with open(file_path, 'w', encoding='utf-8') as f:
+    with open(file_path, 'w') as f:
         f.write(modified_content)
     
     print("✅ Added ping method to RedisMessageBus class")
@@ -84,27 +83,26 @@ def fix_redis_ping():
 
 if __name__ == "__main__":
     print("="*80)
-    print("          RedisMessageBus Ping Fix for GenAI Agent 3D           ")
+    print("                 Redis Message Bus Ping Fix                 ")
     print("="*80)
     
-    success = fix_redis_ping()
+    success = add_ping_method()
     
     if success:
-        print("\n✅ Fix successfully applied!")
-        print("\nThis fix addresses the 'RedisMessageBus' object has no attribute 'ping' error.")
-        print("You should now be able to see the system status as 'Online' instead of 'Offline'.")
+        print("\nDone! The RedisMessageBus class now has a ping method.")
+        print("This fixes the 'RedisMessageBus' object has no attribute 'ping' error.")
         
         # Ask if user wants to restart services
         restart = input("Do you want to restart all services now? (y/n): ")
         if restart.lower() == 'y':
-            print("\nRestarting services...")
-            os.system('cd genai_agent_project && python manage_services.py restart all')
+            print("Restarting services...")
+            os.system('cd C:\\ZB_Share\\Labs\\src\\CluadeMCP\\genai-agent-3d && python manage_services.py restart all')
             print("Services restarted!")
         else:
-            print("\nSkipping service restart")
+            print("Skipping service restart")
             print("To restart services manually:")
-            print("cd genai_agent_project")
+            print("cd C:\\ZB_Share\\Labs\\src\\CluadeMCP\\genai-agent-3d")
             print("python manage_services.py restart all")
     else:
-        print("\n❌ Failed to apply fix.")
+        print("\n❌ Failed to add ping method to RedisMessageBus class")
         print("Please check the error messages above and fix manually if needed.")

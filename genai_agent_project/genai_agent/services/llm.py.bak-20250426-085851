@@ -69,19 +69,6 @@ class LLMService:
                                 {"id": model["name"], "name": model["name"]}
                                 for model in data.get("models", [])
                             ]
-
-            # Add Anthropic provider
-            self.providers["anthropic"] = {
-                "name": "Anthropic",
-                "is_local": False,
-                "base_url": "https://api.anthropic.com",
-                "models": [
-                    {"id": "claude-3-sonnet-20240229", "name": "Claude 3 Sonnet"},
-                    {"id": "claude-3-opus-20240229", "name": "Claude 3 Opus"},
-                    {"id": "claude-3-haiku-20240307", "name": "Claude 3 Haiku"},
-                    {"id": "claude-3.5-sonnet-20250626", "name": "Claude 3.5 Sonnet"}
-                ]
-            }
         except Exception as e:
             logger.warning(f"Failed to get Ollama models: {str(e)}")
             # Add default models as fallback
@@ -129,14 +116,12 @@ class LLMService:
         # Generate based on provider
         if provider.lower() == "ollama":
             return await self._generate_ollama(prompt, model, parameters)
-        elif provider.lower() == "anthropic":
-            return await self._generate_anthropic(prompt, model, parameters)
         else:
             raise ValueError(f"Unsupported provider: {provider}")
     
     async def _generate_ollama(self, prompt: str, model: str, parameters: Dict[str, Any]) -> str:
         """Generate text using Ollama API"""
-        base_url = self.providers.get("ollama", {}).get("base_url", "http://127.0.0.1:11434")
+        base_url = self.providers["ollama"]["base_url"]
         
         # Map our generic parameters to Ollama specific ones
         ollama_params = {
@@ -162,58 +147,7 @@ class LLMService:
                 else:
                     error_msg = f"Ollama API error: {response.status_code} - {response.text}"
                     logger.error(error_msg)
-                    return f"Error: {error_msg}. Please make sure Ollama is running and the model is installed."
-        except httpx.ConnectError:
-            error_msg = f"Could not connect to Ollama at {base_url}. Please make sure Ollama is running."
-            logger.error(error_msg)
-            return error_msg
+                    raise Exception(error_msg)
         except Exception as e:
-            error_msg = f"Error generating text with Ollama: {str(e)}"
-            logger.error(error_msg)
-            return f"Error: {error_msg}"
-    
-    async def _generate_anthropic(self, prompt: str, model: str, parameters: Dict[str, Any]) -> str:
-        """Generate text using Anthropic API"""
-        api_key = os.environ.get("ANTHROPIC_API_KEY") or self.config.get("api_key")
-        if not api_key:
-            error_msg = "Anthropic API key not found. Set ANTHROPIC_API_KEY environment variable or configure in settings."
-            logger.error(error_msg)
-            return error_msg
-        
-        # Map our generic parameters to Anthropic specific ones
-        max_tokens = parameters.get("max_tokens", 2048)
-        temperature = parameters.get("temperature", 0.7)
-        
-        headers = {
-            "Content-Type": "application/json",
-            "x-api-key": api_key,
-            "anthropic-version": "2023-06-01"
-        }
-        
-        # Build request body
-        request_body = {
-            "model": model,
-            "prompt": f"\n\nHuman: {prompt}\n\nAssistant:",
-            "max_tokens_to_sample": max_tokens,
-            "temperature": temperature
-        }
-        
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(
-                    "https://api.anthropic.com/v1/complete",
-                    headers=headers,
-                    json=request_body
-                )
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    return data.get("completion", "")
-                else:
-                    error_msg = f"Anthropic API error: {response.status_code} - {response.text}"
-                    logger.error(error_msg)
-                    return f"Error: {error_msg}"
-        except Exception as e:
-            error_msg = f"Error generating text with Anthropic: {str(e)}"
-            logger.error(error_msg)
-            return f"Error: {error_msg}"
+            logger.error(f"Error generating text with Ollama: {str(e)}")
+            raise

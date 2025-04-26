@@ -91,6 +91,36 @@ class RedisMessageBus:
             self.redis = None
             logger.info("Disconnected from Redis")
     
+    async def ping(self):
+        """Check if Redis connection is alive"""
+        try:
+            if self.redis is None:
+                await self.connect()
+                
+            if self.redis:
+                # Test connection
+                pong = await self.redis.ping()
+                return {"status": "ok", "message": "PONG" if pong else "Connection exists but ping failed"}
+            return {"status": "error", "message": "Redis connection not initialized"}
+        except Exception as e:
+            logger.error(f"Redis ping failed: {str(e)}")
+            return {"status": "error", "message": str(e)}
+    
+    async def ping(self):
+        """Check if Redis connection is alive"""
+        try:
+            if self.redis is None:
+                await self.connect()
+                
+            if self.redis:
+                # Test connection
+                pong = await self.redis.ping()
+                return {"status": "ok", "message": "PONG" if pong else "Connection exists but ping failed"}
+            return {"status": "error", "message": "Redis connection not initialized"}
+        except Exception as e:
+            logger.error(f"Redis ping failed: {str(e)}")
+            return {"status": "error", "message": str(e)}
+    
     async def publish(self, channel: str, message: Dict[str, Any]):
         """
         Publish message to channel

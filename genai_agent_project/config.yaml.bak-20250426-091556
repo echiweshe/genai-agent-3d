@@ -29,9 +29,8 @@ integrations:
   trellis:
     path: C:\ZB_Share\Labs\src\CluadeMCP\genai-agent-3d\integrations\trellis
 llm:
-  api_key: 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
   generation_timeout: 300
-  model: claude-3-sonnet-20240229
+  model: llama3.2:latest
   prompt_templates:
     json_generation: '
 
@@ -43,9 +42,9 @@ llm:
       Do not include markdown code blocks or any text outside the JSON.
 
       '
-  provider: anthropic
+  provider: ollama
   timeout: 300
-  type: cloud
+  type: local
 memory:
   file_path: data/memory/
   storage_type: redis
