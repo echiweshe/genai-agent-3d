@@ -1,89 +1,85 @@
-# Managing API Keys Securely in GenAI Agent 3D
+# Setting Up API Keys for GenAI Agent 3D
 
-This guide explains how to properly manage API keys and other sensitive information in the GenAI Agent 3D project.
+This document provides instructions for setting up API keys for various AI providers in GenAI Agent 3D.
 
-## IMPORTANT: Never Commit API Keys to the Repository
+## Quick Fix for Claude API Key Issue
 
-API keys and other credentials should **never** be committed to version control. GitHub and other repository hosts actively scan for committed secrets and will block pushes that contain sensitive information.
+If you're experiencing issues with Claude (Anthropic) API authentication, you can use the `fix_anthropic_key.py` script:
 
-## Proper API Key Management
-
-### Using Environment Variables
-
-The best practice is to store API keys in environment variables rather than in source code or configuration files. GenAI Agent 3D supports loading API keys from environment variables.
-
-### Using .env Files (Local Development Only)
-
-For local development, you can use `.env` files to store your API keys. These files should:
-
-1. **Never be committed to the repository**
-2. Be listed in `.gitignore`
-3. Only exist on your local development machine
-
-## Setting Up API Keys
-
-### Method 1: Using the Management Tool
-
-The simplest way to set up your API keys is to use the management tool:
-
-```
-python manage_system.py
+```bash
+python fix_anthropic_key.py
 ```
 
-Then select "API Key Management" from the menu and follow the prompts.
+This script will:
+1. Prompt you to enter your Anthropic API key
+2. Save it to the correct location in your project
+3. Ensure it's loaded properly by the application
 
-### Method 2: Editing .env Files
+Alternatively, you can provide the API key directly on the command line:
 
-You can manually edit the `.env` files in the project:
+```bash
+python fix_anthropic_key.py --key your_anthropic_api_key_here
+```
 
-1. Open `.env` in the project root
-2. Replace placeholders with your actual API keys:
+## Setting Up Multiple API Keys
+
+For a more comprehensive setup of all supported AI providers, use the `setup_api_keys.py` script:
+
+```bash
+python setup_api_keys.py
+```
+
+This interactive script will guide you through setting up API keys for:
+- OpenAI (GPT-4, GPT-3.5)
+- Anthropic (Claude)
+- Stability AI
+- Replicate
+
+## Manual API Key Setup
+
+If you prefer to set up API keys manually, follow these steps:
+
+1. Create or edit the `.env` file in the `genai_agent_project` directory
+2. Add your API keys in the following format:
    ```
-   ANTHROPIC_API_KEY=your_actual_api_key_here
-   OPENAI_API_KEY=your_actual_api_key_here
+   ANTHROPIC_API_KEY=your_anthropic_api_key_here
+   OPENAI_API_KEY=your_openai_api_key_here
+   STABILITY_API_KEY=your_stability_api_key_here
+   REPLICATE_API_KEY=your_replicate_api_key_here
    ```
+3. Save the file
+4. Restart the GenAI Agent 3D application
 
-### Method 3: Using Environment Variables
+## Obtaining API Keys
 
-Set environment variables before running the application:
+### Anthropic (Claude)
+1. Visit [https://console.anthropic.com/](https://console.anthropic.com/)
+2. Create an account or sign in
+3. Navigate to the API Keys section
+4. Create a new API key
+5. Copy the key (it starts with `sk-ant-`)
 
-**Windows:**
-```
-set ANTHROPIC_API_KEY=your_actual_api_key_here
-```
+### OpenAI
+1. Visit [https://platform.openai.com/](https://platform.openai.com/)
+2. Create an account or sign in
+3. Navigate to the API section
+4. Create a new API key
+5. Copy the key (it starts with `sk-`)
 
-**Linux/macOS:**
-```
-export ANTHROPIC_API_KEY=your_actual_api_key_here
-```
+### Stability AI
+1. Visit [https://platform.stability.ai/](https://platform.stability.ai/)
+2. Create an account or sign in
+3. Navigate to the Account/API Keys section
+4. Copy your API key
 
-## Required API Keys
+## Troubleshooting
 
-Depending on your configuration, you may need the following API keys:
+If you're still experiencing issues after setting up your API keys:
 
-- **Anthropic API Key**: Required when using Claude as your LLM provider
-- **OpenAI API Key**: Required when using OpenAI models
-- **Stability API Key**: Required for image generation features
+1. Make sure the GenAI Agent 3D application has been restarted
+2. Check that your API keys are valid and have not expired
+3. Verify that the `.env` file is in the correct location: `genai_agent_project/.env`
+4. Make sure the API keys are in the correct format (no extra spaces or quotes)
+5. Check the application logs for any error messages related to API authentication
 
-## Security Best Practices
-
-1. **Never share API keys** in public forums, chat, or code repositories
-2. **Rotate API keys** periodically, especially if you suspect they may be compromised
-3. Use **environment variables** whenever possible instead of hardcoded values
-4. Keep `.env` files **local** and do not synchronize them with others
-5. Use **placeholder values** in example configuration files
-6. Consider using a **secrets manager** for production deployments
-
-## Troubleshooting GitHub Push Rejection
-
-If you accidentally commit API keys and GitHub rejects your push, follow these steps:
-
-1. Remove the sensitive information from your files
-2. Commit the changes
-3. Try pushing again
-
-If you've already pushed sensitive information:
-
-1. Rotate your API keys immediately (get new ones)
-2. Remove the sensitive information from your repository
-3. Consider using tools like BFG Repo-Cleaner or git-filter-repo to completely remove the sensitive information from your Git history
+For persistent issues, please check the project documentation or open an issue on the project repository.

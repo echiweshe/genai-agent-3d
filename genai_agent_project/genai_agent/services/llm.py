@@ -105,6 +105,18 @@ class LLMService:
                     {"id": "gpt-3.5-turbo", "name": "GPT-3.5 Turbo"}
                 ]
             }
+            
+            # Add Hunyuan3D provider
+            self.providers["hunyuan3d"] = {
+                "name": "Hunyuan3D",
+                "is_local": False,
+                "base_url": "https://api.hunyuan3d.ai",
+                "models": [
+                    {"id": "hunyuan-3d-base", "name": "Hunyuan-3D Base"},
+                    {"id": "hunyuan-3d-pro", "name": "Hunyuan-3D Pro"}
+                ]
+            }
+            
         except Exception as e:
             logger.warning(f"Failed to get Ollama models: {str(e)}")
             # Add default models as fallback
@@ -156,6 +168,8 @@ class LLMService:
             return await self._generate_anthropic(prompt, model, parameters)
         elif provider.lower() == "openai":
             return await self._generate_openai(prompt, model, parameters)
+        elif provider.lower() == "hunyuan3d":
+            return await self._generate_hunyuan3d(prompt, model, parameters)
         else:
             raise ValueError(f"Unsupported provider: {provider}")
     
@@ -211,9 +225,10 @@ class LLMService:
         max_tokens = parameters.get("max_tokens", 2048)
         temperature = parameters.get("temperature", 0.7)
         
+        # Updated headers with correct format
         headers = {
             "Content-Type": "application/json",
-            "x-api-key": api_key,
+            "X-API-Key": api_key,  # Changed to X-API-Key (capital X)
             "anthropic-version": "2023-06-01"
         }
         
@@ -245,6 +260,9 @@ class LLMService:
                         text_blocks = [block["text"] for block in content_blocks if block["type"] == "text"]
                         return "".join(text_blocks)
                     return ""
+                else:
+                    error_msg = f"Anthropic API error: {response.status_code} - {response.text}"
+                    logger.error(error_msg)
         except Exception as e:
             logger.warning(f"Messages API failed, falling back to Completion API: {str(e)}")
             # Fall back to the older Completion API
@@ -323,5 +341,54 @@ class LLMService:
                     return f"Error: {error_msg}"
         except Exception as e:
             error_msg = f"Error generating text with OpenAI: {str(e)}"
+            logger.error(error_msg)
+            return f"Error: {error_msg}"
+
+    async def _generate_hunyuan3d(self, prompt: str, model: str, parameters: Dict[str, Any]) -> str:
+        """Generate text using Hunyuan3D API"""
+        # Try to get API key from environment first, then config
+        api_key = get_api_key_for_provider("hunyuan3d") or self.config.get("api_key")
+        
+        if not api_key:
+            error_msg = "Hunyuan3D API key not found. Set HUNYUAN3D_API_KEY environment variable or configure in settings."
+            logger.error(error_msg)
+            return error_msg
+        
+        # Map our generic parameters to Hunyuan3D specific ones
+        max_tokens = parameters.get("max_tokens", 2048)
+        temperature = parameters.get("temperature", 0.7)
+        
+        headers = {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {api_key}"
+        }
+        
+        # Build request body for the Hunyuan3D API
+        request_body = {
+            "model": model,
+            "prompt": prompt,
+            "max_tokens": max_tokens,
+            "temperature": temperature
+        }
+        
+        try:
+            # This is a placeholder URL - replace with actual Hunyuan3D API URL
+            base_url = self.providers.get("hunyuan3d", {}).get("base_url", "https://api.hunyuan3d.ai")
+            async with httpx.AsyncClient(timeout=60.0) as client:
+                response = await client.post(
+                    f"{base_url}/v1/text/completions",
+                    headers=headers,
+                    json=request_body
+                )
+                
+                if response.status_code == 200:
+                    data = response.json()
+                    return data.get("text", "")
+                else:
+                    error_msg = f"Hunyuan3D API error: {response.status_code} - {response.text}"
+                    logger.error(error_msg)
+                    return f"Error: {error_msg}"
+        except Exception as e:
+            error_msg = f"Error generating text with Hunyuan3D: {str(e)}"
             logger.error(error_msg)
             return f"Error: {error_msg}"

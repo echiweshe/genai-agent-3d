@@ -61,6 +61,7 @@ cd .\genai_agent_project
    cd web/backend
    python -m venv venv
    python.exe -m pip install --upgrade pip
+   .\venv\Scripts\activate
    pip install -r requirements.txt
    
    python run_server.py

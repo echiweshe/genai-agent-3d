@@ -22,7 +22,14 @@ class UpdateLLMSettingsRequest(BaseModel):
     """Model for updating LLM settings"""
     provider: Optional[str] = None
     model: Optional[str] = None
+    type: Optional[str] = None
     api_key: Optional[str] = None
+
+class APIKeyStatusResponse(BaseModel):
+    """Model for API key status response"""
+    anthropic: bool
+    openai: bool
+    stability: bool
 
 class LLMSettingsResponse(BaseModel):
     """Model for LLM settings response"""
@@ -30,7 +37,7 @@ class LLMSettingsResponse(BaseModel):
     model: str
     type: str
     available_providers: List[Dict[str, Any]]
-    api_keys: Dict[str, bool]
+    api_keys: APIKeyStatusResponse
 
 # LLM settings manager instance
 _settings_manager = None

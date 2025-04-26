@@ -14,6 +14,9 @@ from typing import Dict, Any, Optional, List
 import dotenv
 from pathlib import Path
 
+# Import the enhanced environment loader
+from .enhanced_env_loader import get_api_key_for_provider, get_llm_config_from_env
+
 # Configure logging
 logger = logging.getLogger(__name__)
 
@@ -81,6 +84,10 @@ class LLMSettingsManager:
                 'generation_timeout': self.config['llm'].get('generation_timeout', 900)
             }
         
+        # Override with environment variables if available
+        env_config = get_llm_config_from_env()
+        settings.update(env_config)
+        
         # Add available providers and models
         settings['available_providers'] = self._get_available_providers()
         
@@ -120,7 +127,19 @@ class LLMSettingsManager:
                     'type': 'cloud',
                     'models': [
                         {'id': 'claude-3-sonnet-20240229', 'name': 'Claude 3 Sonnet'},
-                        {'id': 'claude-3-opus-20240229', 'name': 'Claude 3 Opus'}
+                        {'id': 'claude-3-opus-20240229', 'name': 'Claude 3 Opus'},
+                        {'id': 'claude-3-haiku-20240307', 'name': 'Claude 3 Haiku'},
+                        {'id': 'claude-3.5-sonnet-20250626', 'name': 'Claude 3.5 Sonnet'}
+                    ]
+                },
+                {
+                    'id': 'openai',
+                    'name': 'OpenAI',
+                    'type': 'cloud',
+                    'models': [
+                        {'id': 'gpt-4o', 'name': 'GPT-4o'},
+                        {'id': 'gpt-4', 'name': 'GPT-4'},
+                        {'id': 'gpt-3.5-turbo', 'name': 'GPT-3.5 Turbo'}
                     ]
                 }
             ]
@@ -130,9 +149,9 @@ class LLMSettingsManager:
     def _get_api_key_status(self) -> Dict[str, bool]:
         """Get API key status (whether keys are set, not the actual keys)"""
         return {
-            'anthropic': bool(os.environ.get('ANTHROPIC_API_KEY')),
-            'openai': bool(os.environ.get('OPENAI_API_KEY')),
-            'stability': bool(os.environ.get('STABILITY_API_KEY'))
+            'anthropic': bool(get_api_key_for_provider('anthropic')),
+            'openai': bool(get_api_key_for_provider('openai')),
+            'stability': bool(get_api_key_for_provider('stability'))
         }
     
     def update_llm_settings(self, settings: Dict[str, Any]) -> bool:
@@ -256,10 +275,6 @@ class LLMSettingsManager:
                 # Check if variable already exists in .env
                 if f"{env_var}=" in env_content:
                     # Replace existing value
-                    pattern = f"{env_var}=.*"
-                    replacement = f"{env_var}={value}"
-                    
-                    # Use regex-like approach without importing re
                     lines = env_content.split('\n')
                     for i, line in enumerate(lines):
                         if line.startswith(f"{env_var}="):
@@ -277,6 +292,10 @@ class LLMSettingsManager:
             
             # Reload environment variables
             dotenv.load_dotenv(self.env_path, override=True)
+            
+            # Update os.environ
+            for env_var, value in updates.items():
+                os.environ[env_var] = value
             
             return True
         except Exception as e:
