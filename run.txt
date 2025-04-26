@@ -29,13 +29,12 @@ cd .\genai_agent_project
 .\venv\Scripts\activate
 python manage_services.py restart all
 
-cd ..
 
 # Start all services
-python genai_agent_project\manage_services.py start all
+python manage_services.py start all
 
 # Or start just the LLM worker
-python genai_agent_project\manage_services.py start llm_worker
+python manage_services.py start llm_worker
 
 
 # -----------------
@@ -71,3 +70,5 @@ cd .\genai_agent_project
 cd .\genai_agent_project\web\frontend
    npm install
    npm start
+
+
