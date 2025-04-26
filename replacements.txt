@@ -1,0 +1,2 @@
+# Replace Anthropic API Keys detected in the repo
+sk-ant- => REDACTED

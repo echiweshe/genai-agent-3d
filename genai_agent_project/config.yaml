@@ -169,3 +169,5 @@ tools:
       trellis_path: C:\path\to\TRELLIS
     enabled: false
     module: genai_agent.tools.trellis_tool
+
+    
