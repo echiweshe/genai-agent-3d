@@ -8,17 +8,17 @@ integrations:
   blender_gpt:
     api_key: null
     blender_path: C:\Program Files\Blender Foundation\Blender 4.2\blender.exe
-    blendergpt_path: C:\ZB_Share\Labs\src\CluadeMCP\genai-agent-3d\integrations\blendergpt
+    blendergpt_path: C:\path\to\BlenderGPT
     enabled: true
     model: gpt-4
   blendergpt:
-    path: C:\ZB_Share\Labs\src\CluadeMCP\genai-agent-3d\integrations\blendergpt
+    path: C:\path\to\BlenderGPT
   hunyuan3d:
-    path: C:\ZB_Share\Labs\src\CluadeMCP\genai-agent-3d\integrations\hunyuan3d
+    path: C:\path\to\Hunyuan3D
   hunyuan_3d:
     device: cuda:0
     enabled: true
-    hunyuan_path: C:\ZB_Share\Labs\src\CluadeMCP\genai-agent-3d\integrations\hunyuan3d
+    hunyuan_path: C:\path\to\Hunyuan3D
     output_dir: output/hunyuan/
     supported_formats:
     - obj
@@ -27,21 +27,17 @@ integrations:
     - usdz
     use_gpu: true
   trellis:
-    path: C:\ZB_Share\Labs\src\CluadeMCP\genai-agent-3d\integrations\trellis
+    path: C:\path\to\TRELLIS
 llm:
-  api_key: "YOUR_ANTHROPIC_API_KEY_HERE"
+  api_key: "YOUR_API_KEY_HERE"  # DO NOT COMMIT ACTUAL API KEYS
   generation_timeout: 300
   model: claude-3-sonnet-20240229
   prompt_templates:
     json_generation: '
-
       You are a JSON generation assistant. Generate only valid, well-formed JSON with
       no explanations.
-
       The JSON should be properly formatted and include closing brackets.
-
       Do not include markdown code blocks or any text outside the JSON.
-
       '
   provider: anthropic
   timeout: 300
