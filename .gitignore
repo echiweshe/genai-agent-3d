@@ -47,8 +47,10 @@ uploads/
 *.blend3
 
 # API Keys and sensitive information
-config.yaml
+# config.yaml
+.env
 .env.*
+.env*
 *.key
 secrets.json
 
@@ -57,3 +59,13 @@ secrets.json
 *.bak
 *.backup
 *.old
+
+# Node modules
+node_modules/
+genai_agent_project/web/frontend/node_modules/
+
+# Cache and build artifacts
+*.pack
+.cache/
+dist/
+build/
