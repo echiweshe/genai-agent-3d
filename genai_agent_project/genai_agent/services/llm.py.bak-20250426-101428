@@ -8,9 +8,6 @@ import logging
 import httpx
 import asyncio
 from typing import Dict, Any, List, Optional
-
-# Import the enhanced environment loader
-from .enhanced_env_loader import get_api_key_for_provider, get_llm_config_from_env
 from ..config import get_settings
 
 # Configure logging
@@ -25,14 +22,6 @@ class LLMService:
         self.config = self.settings.llm
         self.initialized = False
         self.providers = {}
-        
-        # Ensure API key is loaded from environment if needed
-        if not self.config.get("api_key") and self.config.get("provider") != "ollama":
-            provider = self.config.get("provider", "ollama")
-            api_key = get_api_key_for_provider(provider)
-            if api_key:
-                self.config["api_key"] = api_key
-                logger.info(f"Loaded API key for {provider} from environment")
         
         logger.info(f"🔍 LLM config: type={self.config.get('type', 'local')}, provider={self.config.get('provider', 'ollama')}, model={self.config.get('model', 'llama3.2:latest')}")
         logger.info(f"LLM Service initialized with {self.config.get('provider', 'ollama')} ({self.config.get('type', 'local')})")
@@ -93,18 +82,6 @@ class LLMService:
                     {"id": "claude-3.5-sonnet-20250626", "name": "Claude 3.5 Sonnet"}
                 ]
             }
-            
-            # Add OpenAI provider
-            self.providers["openai"] = {
-                "name": "OpenAI",
-                "is_local": False,
-                "base_url": "https://api.openai.com",
-                "models": [
-                    {"id": "gpt-4o", "name": "GPT-4o"},
-                    {"id": "gpt-4", "name": "GPT-4"},
-                    {"id": "gpt-3.5-turbo", "name": "GPT-3.5 Turbo"}
-                ]
-            }
         except Exception as e:
             logger.warning(f"Failed to get Ollama models: {str(e)}")
             # Add default models as fallback
@@ -140,7 +117,7 @@ class LLMService:
         
         # Use parameters from request or fallback to defaults
         provider = provider or self.config.get("provider", "ollama")
-        model = model or self.config.get("model", "llama3:latest")
+        model = model or self.config.get("model", "llama3.2:latest")
         parameters = parameters or {}
         
         # Set default parameters if not provided
@@ -154,8 +131,6 @@ class LLMService:
             return await self._generate_ollama(prompt, model, parameters)
         elif provider.lower() == "anthropic":
             return await self._generate_anthropic(prompt, model, parameters)
-        elif provider.lower() == "openai":
-            return await self._generate_openai(prompt, model, parameters)
         else:
             raise ValueError(f"Unsupported provider: {provider}")
     
@@ -199,9 +174,7 @@ class LLMService:
     
     async def _generate_anthropic(self, prompt: str, model: str, parameters: Dict[str, Any]) -> str:
         """Generate text using Anthropic API"""
-        # Try to get API key from environment first, then config
-        api_key = get_api_key_for_provider("anthropic") or self.config.get("api_key")
-        
+        api_key = os.environ.get("ANTHROPIC_API_KEY") or self.config.get("api_key")
         if not api_key:
             error_msg = "Anthropic API key not found. Set ANTHROPIC_API_KEY environment variable or configure in settings."
             logger.error(error_msg)
@@ -217,40 +190,8 @@ class LLMService:
             "anthropic-version": "2023-06-01"
         }
         
-        # First try the newer Messages API format
-        try:
-            # Messages API format (newer and recommended)
-            messages_body = {
-                "model": model,
-                "messages": [
-                    {"role": "user", "content": prompt}
-                ],
-                "max_tokens": max_tokens,
-                "temperature": temperature
-            }
-            
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(
-                    "https://api.anthropic.com/v1/messages",
-                    headers=headers,
-                    json=messages_body
-                )
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    # Extract the message content from the response
-                    if data.get("content") and len(data["content"]) > 0:
-                        # Messages API returns an array of content blocks
-                        content_blocks = data["content"]
-                        text_blocks = [block["text"] for block in content_blocks if block["type"] == "text"]
-                        return "".join(text_blocks)
-                    return ""
-        except Exception as e:
-            logger.warning(f"Messages API failed, falling back to Completion API: {str(e)}")
-            # Fall back to the older Completion API
-        
-        # Completion API format (older)
-        completion_body = {
+        # Build request body
+        request_body = {
             "model": model,
             "prompt": f"\n\nHuman: {prompt}\n\nAssistant:",
             "max_tokens_to_sample": max_tokens,
@@ -262,7 +203,7 @@ class LLMService:
                 response = await client.post(
                     "https://api.anthropic.com/v1/complete",
                     headers=headers,
-                    json=completion_body
+                    json=request_body
                 )
                 
                 if response.status_code == 200:
@@ -274,54 +215,5 @@ class LLMService:
                     return f"Error: {error_msg}"
         except Exception as e:
             error_msg = f"Error generating text with Anthropic: {str(e)}"
-            logger.error(error_msg)
-            return f"Error: {error_msg}"
-            
-    async def _generate_openai(self, prompt: str, model: str, parameters: Dict[str, Any]) -> str:
-        """Generate text using OpenAI API"""
-        # Try to get API key from environment first, then config
-        api_key = get_api_key_for_provider("openai") or self.config.get("api_key")
-        
-        if not api_key:
-            error_msg = "OpenAI API key not found. Set OPENAI_API_KEY environment variable or configure in settings."
-            logger.error(error_msg)
-            return error_msg
-        
-        # Map our generic parameters to OpenAI specific ones
-        max_tokens = parameters.get("max_tokens", 2048)
-        temperature = parameters.get("temperature", 0.7)
-        
-        headers = {
-            "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}"
-        }
-        
-        # Build request body for chat completion
-        request_body = {
-            "model": model,
-            "messages": [
-                {"role": "user", "content": prompt}
-            ],
-            "max_tokens": max_tokens,
-            "temperature": temperature
-        }
-        
-        try:
-            async with httpx.AsyncClient(timeout=60.0) as client:
-                response = await client.post(
-                    "https://api.openai.com/v1/chat/completions",
-                    headers=headers,
-                    json=request_body
-                )
-                
-                if response.status_code == 200:
-                    data = response.json()
-                    return data.get("choices", [{}])[0].get("message", {}).get("content", "")
-                else:
-                    error_msg = f"OpenAI API error: {response.status_code} - {response.text}"
-                    logger.error(error_msg)
-                    return f"Error: {error_msg}"
-        except Exception as e:
-            error_msg = f"Error generating text with OpenAI: {str(e)}"
             logger.error(error_msg)
             return f"Error: {error_msg}"
