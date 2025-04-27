@@ -106,14 +106,14 @@ class LLMService:
                 ]
             }
             
-            # Add Hunyuan3D provider
+            # Add Hunyuan3D provider (updated for fal.ai)
             self.providers["hunyuan3d"] = {
                 "name": "Hunyuan3D",
                 "is_local": False,
-                "base_url": "https://api.hunyuan3d.ai",
+                "base_url": "https://api.fal.ai",
                 "models": [
-                    {"id": "hunyuan-3d-base", "name": "Hunyuan-3D Base"},
-                    {"id": "hunyuan-3d-pro", "name": "Hunyuan-3D Pro"}
+                    {"id": "fal-ai/hunyuan3d/v2/multi-view", "name": "Hunyuan-3D Base"},
+                    {"id": "fal-ai/hunyuan3d/v2/multi-view-hd", "name": "Hunyuan-3D HD"}
                 ]
             }
             
@@ -345,7 +345,7 @@ class LLMService:
             return f"Error: {error_msg}"
 
     async def _generate_hunyuan3d(self, prompt: str, model: str, parameters: Dict[str, Any]) -> str:
-        """Generate text using Hunyuan3D API"""
+        """Generate 3D content using Hunyuan3D API via fal.ai"""
         # Try to get API key from environment first, then config
         api_key = get_api_key_for_provider("hunyuan3d") or self.config.get("api_key")
         
@@ -354,41 +354,64 @@ class LLMService:
             logger.error(error_msg)
             return error_msg
         
-        # Map our generic parameters to Hunyuan3D specific ones
-        max_tokens = parameters.get("max_tokens", 2048)
-        temperature = parameters.get("temperature", 0.7)
-        
+        # fal.ai uses a different authentication method
         headers = {
             "Content-Type": "application/json",
-            "Authorization": f"Bearer {api_key}"
+            "Authorization": f"Key {api_key}"  # Note the format is "Key" not "Bearer"
         }
         
-        # Build request body for the Hunyuan3D API
+        # Build request body for the Hunyuan3D API on fal.ai
+        # See https://fal.ai/models/fal-ai/hunyuan3d/v2/multi-view/api
         request_body = {
-            "model": model,
             "prompt": prompt,
-            "max_tokens": max_tokens,
-            "temperature": temperature
+            "negative_prompt": parameters.get("negative_prompt", ""),
+            "num_inference_steps": parameters.get("num_inference_steps", 30),
+            "guidance_scale": parameters.get("guidance_scale", 7.5),
+            "width": parameters.get("width", 1024),
+            "height": parameters.get("height", 1024),
+            "seed": parameters.get("seed", None)
         }
         
         try:
-            # This is a placeholder URL - replace with actual Hunyuan3D API URL
-            base_url = self.providers.get("hunyuan3d", {}).get("base_url", "https://api.hunyuan3d.ai")
-            async with httpx.AsyncClient(timeout=60.0) as client:
+            # Using the correct endpoint for fal.ai
+            base_url = self.providers.get("hunyuan3d", {}).get("base_url", "https://api.fal.ai")
+            endpoint = f"/models/{model}/infer"
+            
+            async with httpx.AsyncClient(timeout=120.0) as client:  # Longer timeout for 3D generation
                 response = await client.post(
-                    f"{base_url}/v1/text/completions",
+                    f"{base_url}{endpoint}",
                     headers=headers,
                     json=request_body
                 )
                 
                 if response.status_code == 200:
                     data = response.json()
-                    return data.get("text", "")
+                    
+                    # For text response in UI, provide the URLs to the generated content
+                    result = "Hunyuan3D Generation Results:\n\n"
+                    
+                    if "images" in data:
+                        result += "Generated images:\n"
+                        for i, image_url in enumerate(data["images"], 1):
+                            result += f"{i}. {image_url}\n"
+                    
+                    if "rendered_frames" in data:
+                        result += "\nRendered frames:\n"
+                        for i, frame in enumerate(data["rendered_frames"], 1):
+                            result += f"{i}. {frame}\n"
+                    
+                    if "3d_model" in data:
+                        result += f"\n3D Model: {data['3d_model']}\n"
+                    
+                    if "mesh_url" in data:
+                        result += f"\nMesh URL: {data['mesh_url']}\n"
+                        
+                    return result
                 else:
                     error_msg = f"Hunyuan3D API error: {response.status_code} - {response.text}"
                     logger.error(error_msg)
                     return f"Error: {error_msg}"
         except Exception as e:
-            error_msg = f"Error generating text with Hunyuan3D: {str(e)}"
+            error_msg = f"Error generating content with Hunyuan3D: {str(e)}"
             logger.error(error_msg)
             return f"Error: {error_msg}"
