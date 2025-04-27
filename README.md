@@ -4,7 +4,7 @@ A comprehensive 3D content generation system powered by AI for creating models, 
 
 ## Overview
 
-GenAI Agent 3D combines the power of Large Language Models (LLMs) with Blender and other 3D tools to automate the creation of 3D content. It provides a web-based interface for generating and managing 3D assets, with support for various LLM providers including local options (Ollama) and cloud-based services (OpenAI, Claude).
+GenAI Agent 3D combines the power of Large Language Models (LLMs) with Blender and other 3D tools to automate the creation of 3D content. It provides a web-based interface for generating and managing 3D assets, with support for various LLM providers including local options (Ollama) and cloud-based services (OpenAI, Claude, Hunyuan3D).
 
 The system is designed to streamline the process of creating visual content for educational purposes, with a focus on technical topics such as GenAI, Cloud, AWS, Networking, and more.
 
@@ -17,6 +17,15 @@ The system is designed to streamline the process of creating visual content for 
 - **Multi-LLM Support**: Use Ollama (local), OpenAI, Claude, or Hunyuan3D
 - **Web Interface**: Easy-to-use web-based UI for all operations
 - **Microservices Architecture**: Scalable and modular design
+- **SVG to 3D Pipeline**: Transform 2D diagrams into 3D visualizations (in development)
+
+## Recent Updates
+
+- **Claude API Integration** ✅ Fixed and fully operational
+- **Hunyuan3D Integration** ✅ Added support for Hunyuan3D via fal.ai
+- **Output Directory Fixes** ✅ Improved file access and linking
+- **Content Preview Enhancements** ✅ Better UI experience with auto-refresh
+- **Comprehensive Fix Scripts** ✅ Added scripts to resolve common issues
 
 ## Getting Started
 
@@ -58,13 +67,18 @@ The system is designed to streamline the process of creating visual content for 
    # Or manually create/edit .env file in genai_agent_project directory
    ```
 
-5. Start the services:
+5. Fix any current issues (recommended):
+   ```bash
+   python ../../fix_all_current_issues.py
+   ```
+
+6. Start the services:
    ```bash
    cd ../..  # Return to genai_agent_project
    python manage_services.py start all
    ```
 
-6. Access the web interface:
+7. Access the web interface:
    Open your browser and navigate to `http://localhost:3000`
 
 ### Configuration
@@ -80,6 +94,15 @@ To use cloud-based LLM providers, you'll need to set up API keys:
 - **Hunyuan3D (fal.ai)**: Get your API key from [fal.ai Dashboard](https://fal.ai/dashboard/keys)
 
 Use the `setup_api_keys.py` script to configure these keys, or add them manually to your `.env` file.
+
+#### LLM Provider Selection
+
+You can choose your preferred LLM provider:
+
+- For Claude: `python set_claude_default.py`
+- For OpenAI: Edit `.env` to set `LLM_PROVIDER=openai`
+- For Ollama (local): Edit `.env` to set `LLM_PROVIDER=ollama`
+- For Hunyuan3D: Edit `.env` to set `LLM_PROVIDER=hunyuan3d`
 
 #### Blender Configuration
 
@@ -101,7 +124,9 @@ The LLM Tester allows you to experiment with different LLM providers:
 4. Enter a prompt and click "Generate"
 
 For best results with 3D content generation:
-- Use OpenAI (GPT-4) or Claude for complex 3D descriptions
+- Use Claude for complex descriptions and SVG generation
+- Use OpenAI (GPT-4) for detailed 3D model specifications
+- Use Hunyuan3D for direct 3D model generation
 - Use specific, detailed prompts that describe the 3D object's appearance
 - Include material properties, dimensions, and contextual details
 
@@ -153,6 +178,22 @@ Example prompt for a diagram:
 Create a technical diagram showing the AWS architecture for a three-tier web application with a VPC, public and private subnets, an Application Load Balancer, an Auto Scaling Group with EC2 instances, an RDS database, and connections to S3 and CloudFront. Label all components clearly and show the data flow between them.
 ```
 
+### Hunyuan3D Generation
+
+To generate 3D content directly with Hunyuan3D:
+
+1. Navigate to the "LLM Test" page
+2. Select "Hunyuan3D" as the provider
+3. Enter a detailed prompt describing the 3D model
+4. Optionally add parameters like negative_prompt, guidance_scale, etc.
+5. Click "Generate"
+6. The response will include links to the generated images and 3D model
+
+Example prompt for Hunyuan3D:
+```
+A detailed 3D model of a futuristic sci-fi drone with four propellers, a sleek metallic body, LED lights, and a camera mounted on the bottom. The drone should have a high-tech appearance with visible panel lines and small details.
+```
+
 ### Blender Scripts
 
 To browse and execute Blender scripts:
@@ -170,6 +211,20 @@ Create a Python script for Blender that generates a procedural city block with b
 
 ## Advanced Features
 
+### SVG to 3D Pipeline (In Development)
+
+The SVG to 3D workflow will transform 2D diagrams into 3D visualizations:
+
+1. Generate SVG diagrams with Claude (recommended)
+2. Process SVGs to extract individual elements
+3. Convert elements to 3D models:
+   - Rectangles → Cubes/Panels
+   - Circles → Spheres/Cylinders
+   - Paths → Extruded shapes
+   - Text → 3D text objects
+4. Create animations from the elements
+5. Integrate with presentations
+
 ### PowerPoint Integration (Coming Soon)
 
 Future versions will include features for:
@@ -184,15 +239,6 @@ A powerful animation system based on Manim's coordinate system will enable:
 - Rich animations (fade in/out, transitions, morphing)
 - Advanced API for complex animation sequences
 
-### SVG Processing Workflow (In Development)
-
-The planned SVG workflow will include:
-1. Generate SVG diagrams with Claude
-2. Process SVGs to extract individual elements
-3. Convert elements to 3D models
-4. Create animations from the elements
-5. Combine with slides for final presentations
-
 ## Architecture
 
 GenAI Agent 3D follows a microservices architecture with these main components:
@@ -205,28 +251,61 @@ GenAI Agent 3D follows a microservices architecture with these main components:
 - **Tool Registry**: Manages available tools
 - **External Integrations**: Blender, Hunyuan3D, etc.
 
-For a detailed architecture overview, see [ARCHITECTURE.md](./ARCHITECTURE.md).
+For a detailed architecture overview, see [ARCHITECTURE.md](./ARCHITECTURE.md) and [MASTER_DOCUMENTATION.md](./MASTER_DOCUMENTATION.md).
 
 ## Troubleshooting
+
+### Common Issues and Fixes
+
+If you encounter any issues, run the fix scripts:
+
+```bash
+# Fix all current issues
+python fix_all_current_issues.py
+
+# Fix specific issues
+python fix_claude_integration.py  # Fix Claude API integration
+python fix_hunyuan3d_integration.py  # Fix Hunyuan3D integration
+python fix_output_directories.py  # Fix output directory linking
+python fix_content_preview.py  # Fix content preview in generator pages
+```
 
 ### LLM Connection Issues
 
 - **Ollama**: Ensure Ollama is running locally
 - **OpenAI/Claude**: Verify API keys and internet connection
+  - For Claude issues, run `python test_claude_api.py`
 - **Hunyuan3D**: Check fal.ai API key and account status
+  - For Hunyuan3D issues, run `python test_hunyuan3d_api.py`
 
 ### Output Directory Issues
 
 If generated files aren't appearing in the web interface:
-1. Check that the symbolic links are correctly set up
+1. Run `python fix_output_directories.py` to repair symbolic links
 2. Verify file permissions
 3. Restart all services: `python manage_services.py restart all`
+
+### Content Preview Problems
+
+If previews aren't updating or showing properly:
+1. Run `python fix_content_preview.py` to improve frontend components
+2. Check browser console for errors
+3. Use the "Refresh" button in the UI to manually update
 
 ### Blender Integration Problems
 
 - Verify Blender path in `.env`
 - Ensure Blender has necessary permissions
 - Check Blender's Python version compatibility
+
+## Documentation
+
+- [MASTER_DOCUMENTATION.md](./MASTER_DOCUMENTATION.md) - Comprehensive project documentation
+- [ARCHITECTURE.md](./ARCHITECTURE.md) - System architecture details
+- [CLAUDE_INTEGRATION_README.md](./CLAUDE_INTEGRATION_README.md) - Claude API integration guide
+- [HUNYUAN3D_GUIDE.md](./HUNYUAN3D_GUIDE.md) - Hunyuan3D integration guide
+- [NEXT_STEPS_ROADMAP.md](./NEXT_STEPS_ROADMAP.md) - Development roadmap
+- [IMPLEMENTATION_SUMMARY.md](./IMPLEMENTATION_SUMMARY.md) - Summary of implementations
 
 ## Contributing
 
@@ -240,4 +319,6 @@ This project is licensed under the MIT License - see the LICENSE file for detail
 
 - The Blender Foundation for Blender
 - The Manim Community for animation concepts
+- Anthropic for Claude API support
+- fal.ai for Hunyuan3D integration
 - All contributors and testers

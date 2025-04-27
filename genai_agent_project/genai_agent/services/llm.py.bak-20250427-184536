@@ -253,15 +253,12 @@ class LLMService:
                 
                 if response.status_code == 200:
                     data = response.json()
-                    logger.debug(f"Claude API response: {data}")
-                    data = response.json()
                     # Extract the message content from the response
-                    if "content" in data and len(data["content"]) > 0:
+                    if data.get("content") and len(data["content"]) > 0:
                         # Messages API returns an array of content blocks
                         content_blocks = data["content"]
                         text_blocks = [block["text"] for block in content_blocks if block["type"] == "text"]
                         return "".join(text_blocks)
-                    return "".join(text_blocks)
                     return ""
                 else:
                     error_msg = f"Anthropic API error: {response.status_code} - {response.text}"
@@ -388,8 +385,6 @@ class LLMService:
                 )
                 
                 if response.status_code == 200:
-                    data = response.json()
-                    logger.debug(f"Hunyuan3D API response: {data}")
                     data = response.json()
                     
                     # For text response in UI, provide the URLs to the generated content

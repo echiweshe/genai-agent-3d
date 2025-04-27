@@ -1,99 +1,126 @@
 #!/usr/bin/env python3
 """
-Set Claude as Default LLM for GenAI Agent 3D
+Set Claude as Default LLM Provider
 
-This script updates the config.yaml file to use Anthropic Claude as the default LLM provider.
-It's a simple, targeted fix that doesn't modify any code files.
+This script updates the configuration to use Claude as the default LLM provider
+for the GenAI Agent 3D project.
 """
 
 import os
+import sys
+import re
+from pathlib import Path
 import yaml
-import shutil
-from datetime import datetime
+import logging
 
-def backup_file(file_path):
-    """Create a backup of the file"""
-    backup_path = f"{file_path}.bak-{datetime.now().strftime('%Y%m%d-%H%M%S')}"
-    shutil.copy2(file_path, backup_path)
-    print(f"✅ Created backup at {backup_path}")
-    return backup_path
+# Configure logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-def set_claude_default():
-    """Update config.yaml to use Claude as the default LLM"""
-    # Find config.yaml
-    file_path = "genai_agent_project/config.yaml"
+def main():
+    """Main function"""
+    project_root = Path(__file__).parent.absolute()
     
-    if not os.path.exists(file_path):
-        # Try absolute path
-        file_path = os.path.join("C:", os.sep, "ZB_Share", "Labs", "src", "CluadeMCP", 
-                              "genai-agent-3d", "genai_agent_project", "config.yaml")
-        if not os.path.exists(file_path):
-            print(f"❌ Could not find config.yaml")
-            return False
+    # Update .env file
+    env_path = project_root / "genai_agent_project" / ".env"
+    if env_path.exists():
+        update_env_file(env_path)
+    else:
+        logger.warning(f".env file not found at {env_path}")
     
-    # Create backup
-    backup_file(file_path)
+    # Update config.yaml file
+    config_path = project_root / "genai_agent_project" / "config.yaml"
+    if config_path.exists():
+        update_config_yaml(config_path)
+    else:
+        logger.warning(f"config.yaml file not found at {config_path}")
     
+    print("\n✅ Claude is now set as the default LLM provider!")
+    print(f"Updated files:")
+    if env_path.exists():
+        print(f"- {env_path}")
+    if config_path.exists():
+        print(f"- {config_path}")
+    
+    # Ask if the user wants to restart services
+    restart = input("\nWould you like to restart the services now? (y/n): ").lower() == 'y'
+    if restart:
+        try:
+            import subprocess
+            subprocess.run([sys.executable, str(project_root / "restart_services.py")], check=True)
+            print("\n✅ Services restarted successfully!")
+        except Exception as e:
+            print(f"\n❌ Failed to restart services: {str(e)}")
+            print("Please restart services manually using restart_services.py")
+    
+    return 0
+
+def update_env_file(env_path):
+    """Update the .env file to use Claude as the default provider"""
     try:
-        # Read config
-        with open(file_path, 'r', encoding='utf-8') as f:
-            config = yaml.safe_load(f) or {}
+        with open(env_path, 'r', encoding='utf-8') as f:
+            content = f.read()
         
         # Update LLM settings
+        updated_content = content
+        
+        # Update LLM_PROVIDER
+        updated_content = re.sub(
+            r'LLM_PROVIDER=.*',
+            'LLM_PROVIDER=anthropic',
+            updated_content
+        )
+        
+        # Update LLM_MODEL
+        updated_content = re.sub(
+            r'LLM_MODEL=.*',
+            'LLM_MODEL=claude-3-sonnet-20240229',
+            updated_content
+        )
+        
+        # Update LLM_TYPE
+        updated_content = re.sub(
+            r'LLM_TYPE=.*',
+            'LLM_TYPE=cloud',
+            updated_content
+        )
+        
+        # Write updated content
+        with open(env_path, 'w', encoding='utf-8') as f:
+            f.write(updated_content)
+        
+        logger.info(f"Updated .env file: {env_path}")
+    except Exception as e:
+        logger.error(f"Error updating .env file: {str(e)}")
+
+def update_config_yaml(config_path):
+    """Update the config.yaml file to use Claude as the default provider"""
+    try:
+        with open(config_path, 'r', encoding='utf-8') as f:
+            config = yaml.safe_load(f)
+        
+        # Update LLM settings in config
         if 'llm' not in config:
             config['llm'] = {}
         
-        # Set Claude as default
-        config['llm']['type'] = 'cloud'
         config['llm']['provider'] = 'anthropic'
         config['llm']['model'] = 'claude-3-sonnet-20240229'
+        config['llm']['type'] = 'cloud'
         
-        # Ask for API key if needed
-        if 'api_key' not in config['llm']:
-            api_key = os.environ.get("ANTHROPIC_API_KEY")
-            if not api_key:
-                print("\nNo Anthropic API key found in environment variables or config.")
-                api_key = input("Enter your Anthropic API key (or leave blank to add later): ").strip()
-                if api_key:
-                    config['llm']['api_key'] = api_key
-                    print("✅ API key added to config")
-                else:
-                    print("ℹ️ No API key provided. You'll need to add it later.")
-        
-        # Save updated config
-        with open(file_path, 'w', encoding='utf-8') as f:
+        # Write updated config
+        with open(config_path, 'w', encoding='utf-8') as f:
             yaml.dump(config, f, default_flow_style=False)
         
-        print("✅ Updated config to use Claude as default LLM")
-        return True
-    
+        logger.info(f"Updated config.yaml file: {config_path}")
     except Exception as e:
-        print(f"❌ Error updating config: {str(e)}")
-        return False
+        logger.error(f"Error updating config.yaml file: {str(e)}")
 
 if __name__ == "__main__":
-    print("="*80)
-    print("       Set Claude as Default LLM for GenAI Agent 3D        ")
-    print("="*80)
-    
-    success = set_claude_default()
-    
-    if success:
-        print("\n✅ Successfully set Claude as the default LLM provider!")
-        print("\nNOTE: This only updates the configuration. If the codebase doesn't")
-        print("support Claude yet, you'll need to run add_anthropic_support.py first.")
-        
-        # Ask if user wants to restart services
-        restart = input("\nDo you want to restart all services now? (y/n): ")
-        if restart.lower() == 'y':
-            print("\nRestarting services...")
-            os.system('cd genai_agent_project && python manage_services.py restart all')
-            print("Services restarted!")
-        else:
-            print("\nSkipping service restart")
-            print("To restart services manually:")
-            print("cd genai_agent_project")
-            print("python manage_services.py restart all")
-    else:
-        print("\n❌ Failed to set Claude as default LLM provider.")
-        print("Please check the error messages above and fix manually if needed.")
+    try:
+        sys.exit(main())
+    except KeyboardInterrupt:
+        print("\nOperation cancelled by user.")
+        sys.exit(1)
+    except Exception as e:
+        print(f"\n❌ Error: {e}")
+        sys.exit(1)

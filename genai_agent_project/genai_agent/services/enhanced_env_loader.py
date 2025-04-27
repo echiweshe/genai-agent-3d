@@ -34,6 +34,8 @@ def get_api_key_for_provider(provider: str) -> Optional[str]:
         'anthropic': 'ANTHROPIC_API_KEY',
         'stability': 'STABILITY_API_KEY',
         'replicate': 'REPLICATE_API_KEY'
+    ,
+        'hunyuan3d': 'HUNYUAN3D_API_KEY'
     }
     
     # Get the appropriate environment variable name

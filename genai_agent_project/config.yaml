@@ -80,6 +80,15 @@ memory:
   file_path: data/memory/
   storage_type: redis
   ttl: 3600
+paths:
+  blendergpt_output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/blendergpt
+  diagrams_output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/diagrams
+  hunyuan_output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/hunyuan
+  models_output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/models
+  output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output
+  scenes_output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/scenes
+  svg_output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/svg
+  trellis_output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/trellis
 redis:
   db: 0
   host: localhost

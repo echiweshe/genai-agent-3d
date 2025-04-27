@@ -389,8 +389,6 @@ class LLMService:
                 
                 if response.status_code == 200:
                     data = response.json()
-                    logger.debug(f"Hunyuan3D API response: {data}")
-                    data = response.json()
                     
                     # For text response in UI, provide the URLs to the generated content
                     result = "Hunyuan3D Generation Results:\n\n"
