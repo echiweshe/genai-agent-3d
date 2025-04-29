@@ -1,126 +1,163 @@
-# GenAI Agent 3D - Troubleshooting Guide
+# Troubleshooting Guide for SVG to Video Pipeline
 
-This guide addresses common issues you might encounter when setting up and running the GenAI Agent 3D with LLM integration.
+This document provides solutions for common issues encountered when setting up and running the SVG to Video Pipeline.
 
-## Installation Issues
+## Setup Issues
 
-### Missing Python Dependencies
+### Virtual Environment Creation Fails
 
-If you see errors like `ModuleNotFoundError: No module named 'httpx'` or other missing modules:
+**Problem**: The `setup_svg_to_video.bat` script fails when creating the virtual environment.
 
-1. Run the dependency installation script:
+**Solution**:
+1. Make sure Python 3.9+ is installed and in your PATH
+2. Try creating the virtual environment manually:
    ```
-   python install_dependencies.py
+   python -m venv venv
    ```
-
-2. If that doesn't work, manually install the required packages:
+3. If that fails, try installing the virtualenv package:
    ```
-   cd genai_agent_project
-   .\venv\Scripts\activate  # On Windows
-   pip install httpx pydantic fastapi redis pyyaml requests uvicorn
-   ```
-
-### Syntax Errors in Python Scripts
-
-If you encounter syntax errors in any of the Python scripts:
-
-1. Make sure you're using Python 3.8 or newer: `python --version`
-2. Run the updated scripts provided in this package:
-   ```
-   python 09_update_agent_llm.py
+   pip install virtualenv
+   virtualenv venv
    ```
 
-## Starting the Application
+### Dependency Installation Fails
 
-### Backend Won't Start
+**Problem**: The installation of dependencies fails with error messages.
 
-If the backend service fails to start:
-
-1. Check Python dependencies are installed (see above)
-2. Check Redis is running: `redis-cli ping` should return "PONG"
-3. Check Ollama is running: `curl http://localhost:11434/api/version`
-4. Look for specific error messages in the console output
-
-### Frontend Build Errors
-
-If the frontend fails to build with syntax errors:
-
-1. The most common issue is with escaped characters in JavaScript files
-2. Run the update script which includes fixes for these issues:
+**Solution**:
+1. Make sure you have an internet connection
+2. Try upgrading pip:
    ```
-   python 09_update_agent_llm.py
+   venv\Scripts\activate
+   pip install --upgrade pip
+   ```
+3. Install dependencies one by one to identify the problematic package:
+   ```
+   pip install fastapi uvicorn python-multipart langchain
    ```
 
-### Services Restart Issues
+## Runtime Issues
 
-If you have trouble restarting all services:
+### ImportError: cannot import name 'ChatOllama' from 'langchain.chat_models'
 
-1. Try stopping all services first:
+**Problem**: The backend server fails to start with this error.
+
+**Solution**:
+1. This error occurs because the installed version of LangChain doesn't include ChatOllama
+2. Use the simplified server which handles this case gracefully:
    ```
-   cd genai_agent_project
-   python manage_services.py stop all
+   run_simple_dev.bat
    ```
-
-2. Then start them again:
+3. Alternatively, test just the SVG generator without the full pipeline:
    ```
-   python manage_services.py start all
-   ```
-
-3. Check if any processes are still running:
-   - Redis server process
-   - Node.js/npm processes for the frontend
-   - Python processes for the backend
-
-## LLM Integration Issues
-
-### Can't Connect to Ollama
-
-If the application can't connect to Ollama:
-
-1. Make sure Ollama is installed: [https://ollama.ai/](https://ollama.ai/)
-2. Start Ollama: `ollama serve`
-3. Test Ollama with: `curl http://localhost:11434/api/version`
-
-### No Models Available
-
-If no LLM models are available:
-
-1. Pull a model with: `ollama pull llama3.2:latest`
-2. Verify the model is available: `ollama list`
-3. Check the configuration in `genai_agent_project/config/llm.yaml`
-
-### LLM Test Page Not Found
-
-If the LLM Test page is not available in the sidebar:
-
-1. Run the update script to ensure all UI components are properly integrated:
-   ```
-   python 09_update_agent_llm.py
+   run_svg_generator_test.bat
    ```
 
-2. Check if the route was added to App.js
-3. Check if the menu item was added to AppSidebar.js
+### No LLM Providers Available
 
-## Quick Fix Script
+**Problem**: When running the application, it shows "No LLM providers available".
 
-For a comprehensive fix that addresses most common issues:
+**Solution**:
+1. Make sure you've added your API keys to the `.env` file
+2. At least one of the following should be uncommented and have a valid API key:
+   ```
+   ANTHROPIC_API_KEY=your_anthropic_api_key
+   OPENAI_API_KEY=your_openai_api_key
+   ```
+3. Verify the API keys are correct and not expired
+4. Try testing the API keys with the specific provider's tools
 
-```
-python 09_update_agent_llm.py
-```
+### Proxy error: Could not proxy request from localhost:3000 to http://localhost:8000/
 
-This script will:
-1. Install missing dependencies
-2. Fix syntax errors in API routes
-3. Update UI components to include the LLM Test page
-4. Initialize LLM services
-5. Offer to restart all services
+**Problem**: The frontend is running but can't connect to the backend.
 
-## Still Having Issues?
+**Solution**:
+1. Make sure the backend server is running
+2. Check if there are any error messages in the backend server window
+3. Try running the backend server separately:
+   ```
+   call venv\Scripts\activate
+   cd web\backend
+   python simple_server.py
+   ```
+4. If the backend is having issues, use the troubleshooting tips above
 
-If you're still experiencing problems:
+## API Key Issues
 
-1. Check the logs in the console
-2. Ensure all dependencies are installed
-3. Make sure Ollama and Redis are running
-4. Try the update-and-run.bat script (on Windows) for a simplified update and start process
+### Claude API Not Working
+
+**Problem**: You've added your Claude API key but get authentication errors.
+
+**Solution**:
+1. Make sure your API key is correct
+2. Check if your API key is still active
+3. The API key should be in the format `sk-ant-apiXXX-...`
+4. Try testing the key using the Anthropic documentation
+
+### OpenAI API Not Working
+
+**Problem**: You've added your OpenAI API key but get authentication errors.
+
+**Solution**:
+1. Verify your API key is correct
+2. Check if your account has credit available
+3. Make sure your API key has permissions for the models being used
+4. Try testing the key using the OpenAI playground
+
+## Blender Issues
+
+### Blender Not Found
+
+**Problem**: The system can't find or run Blender.
+
+**Solution**:
+1. Make sure Blender is installed
+2. Add Blender to your system PATH, or
+3. Add the full path to Blender in your `.env` file:
+   ```
+   BLENDER_PATH=C:\Program Files\Blender Foundation\Blender 3.3\blender.exe
+   ```
+
+### Blender Script Errors
+
+**Problem**: Blender fails when running the conversion scripts.
+
+**Solution**:
+1. Make sure you're using Blender 3.0 or newer
+2. Try running Blender manually to ensure it works
+3. Check that there are no issues with your GPU drivers
+4. If problems persist, try falling back to CPU rendering:
+   ```
+   BLENDER_USE_GPU=0
+   ```
+
+## Other Issues
+
+### Web Frontend Not Building
+
+**Problem**: The frontend fails to build with Node.js errors.
+
+**Solution**:
+1. Make sure you have Node.js 14 or newer installed
+2. Try clearing the npm cache:
+   ```
+   npm cache clean --force
+   ```
+3. Try reinstalling the dependencies:
+   ```
+   cd web\frontend
+   rm -rf node_modules
+   npm install
+   ```
+
+### Backend Server Not Starting
+
+**Problem**: The backend server doesn't start or crashes immediately.
+
+**Solution**:
+1. Make sure all dependencies are installed
+2. Try the simplified server with `run_simple_dev.bat`
+3. Check for port conflicts - something else might be using port 8000
+4. Look for error messages in the console output
+
+If you encounter an issue not covered in this document, please check the log files for more detailed error messages.

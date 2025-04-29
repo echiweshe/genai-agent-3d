@@ -1,0 +1,223 @@
+.svg-generator {
+  display: flex;
+  flex-direction: column;
+  max-width: 1200px;
+  margin: 0 auto;
+  padding: 20px;
+  font-family: Arial, sans-serif;
+}
+
+.svg-generator h2 {
+  margin-bottom: 20px;
+  color: #333;
+}
+
+.input-section {
+  background-color: #f5f5f5;
+  border-radius: 8px;
+  padding: 20px;
+  margin-bottom: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.form-group {
+  margin-bottom: 15px;
+}
+
+.form-group label {
+  display: block;
+  margin-bottom: 5px;
+  font-weight: bold;
+  color: #555;
+}
+
+.form-group textarea, 
+.form-group select {
+  width: 100%;
+  padding: 10px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.form-group textarea:focus, 
+.form-group select:focus {
+  outline: none;
+  border-color: #0066cc;
+  box-shadow: 0 0 3px rgba(0, 102, 204, 0.3);
+}
+
+.button-group {
+  display: flex;
+  gap: 10px;
+  margin-top: 15px;
+}
+
+.button-group button {
+  padding: 10px 15px;
+  background-color: #0066cc;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.button-group button:hover:not(:disabled) {
+  background-color: #0055aa;
+}
+
+.button-group button:disabled {
+  background-color: #cccccc;
+  cursor: not-allowed;
+}
+
+.error-message {
+  margin-top: 15px;
+  padding: 10px;
+  background-color: #ffebee;
+  color: #d32f2f;
+  border-radius: 4px;
+  font-size: 14px;
+}
+
+.output-section {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.svg-preview {
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.svg-preview h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.svg-container {
+  background-color: #f9f9f9;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  padding: 15px;
+  min-height: 300px;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin-bottom: 15px;
+  overflow: auto;
+}
+
+.svg-container svg {
+  max-width: 100%;
+  max-height: 500px;
+}
+
+.download-button {
+  padding: 8px 15px;
+  background-color: #4caf50;
+  color: white;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 14px;
+  transition: background-color 0.2s;
+}
+
+.download-button:hover {
+  background-color: #45a049;
+}
+
+.task-status {
+  background-color: white;
+  border-radius: 8px;
+  padding: 20px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+}
+
+.task-status h3 {
+  margin-top: 0;
+  margin-bottom: 15px;
+  color: #333;
+}
+
+.status-info {
+  font-size: 14px;
+}
+
+.status-queued {
+  color: #ff9800;
+  font-weight: bold;
+}
+
+.status-running {
+  color: #2196f3;
+  font-weight: bold;
+}
+
+.status-completed {
+  color: #4caf50;
+  font-weight: bold;
+}
+
+.status-failed {
+  color: #f44336;
+  font-weight: bold;
+}
+
+.progress-bar {
+  height: 10px;
+  background-color: #e0e0e0;
+  border-radius: 5px;
+  margin: 10px 0;
+  overflow: hidden;
+}
+
+.progress-fill {
+  height: 100%;
+  background-color: #2196f3;
+  transition: width 0.3s ease;
+}
+
+.result-info, .error-info {
+  margin-top: 15px;
+  padding: 10px;
+  border-radius: 4px;
+}
+
+.result-info {
+  background-color: #e8f5e9;
+  color: #2e7d32;
+}
+
+.error-info {
+  background-color: #ffebee;
+  color: #d32f2f;
+}
+
+.download-link {
+  display: inline-block;
+  margin-top: 10px;
+  padding: 8px 15px;
+  background-color: #4caf50;
+  color: white;
+  text-decoration: none;
+  border-radius: 4px;
+  transition: background-color 0.2s;
+}
+
+.download-link:hover {
+  background-color: #45a049;
+}
+
+@media (max-width: 768px) {
+  .button-group {
+    flex-direction: column;
+  }
+}

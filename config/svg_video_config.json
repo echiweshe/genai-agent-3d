@@ -1,0 +1,17 @@
+{
+  "blender_path": "blender",
+  "script_dir": "genai_agent/scripts",
+  "output_dir": "outputs",
+  "cleanup_temp": true,
+  "temp_dir": "temp/svg_pipeline",
+  "default_provider": "claude",
+  "animation": {
+    "default_type": "standard",
+    "default_duration": 250
+  },
+  "rendering": {
+    "default_quality": "medium",
+    "default_resolution": [1280, 720],
+    "default_fps": 30
+  }
+}
