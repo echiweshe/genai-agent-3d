@@ -17,20 +17,20 @@ if (-not (Test-Path "outputs")) {
 # Load port configuration if available
 $portsConfigPath = "config\ports.json"
 $svgBackendPort = 8001  # Default port
-$webFrontendPort = 3000  # Default port
+$svgFrontendPort = 3001  # Default SVG to Video frontend port
 
 if (Test-Path $portsConfigPath) {
     try {
         $portConfig = Get-Content $portsConfigPath | ConvertFrom-Json
-        $svgBackendPort = $portConfig.svg_to_video_backend
-        $webFrontendPort = $portConfig.web_frontend
-        Write-Host "Using configured ports: Backend=$svgBackendPort, Frontend=$webFrontendPort" -ForegroundColor Green
+        $svgBackendPort = $portConfig.services.svg_to_video_backend
+        $svgFrontendPort = $portConfig.services.svg_to_video_frontend
+        Write-Host "Using configured ports: Backend=$svgBackendPort, Frontend=$svgFrontendPort" -ForegroundColor Green
     } catch {
         Write-Host "Error loading port configuration: $_" -ForegroundColor Red
-        Write-Host "Using default ports: Backend=$svgBackendPort, Frontend=$webFrontendPort" -ForegroundColor Yellow
+        Write-Host "Using default ports: Backend=$svgBackendPort, Frontend=$svgFrontendPort" -ForegroundColor Yellow
     }
 } else {
-    Write-Host "Port configuration file not found. Using default ports: Backend=$svgBackendPort, Frontend=$webFrontendPort" -ForegroundColor Yellow
+    Write-Host "Port configuration file not found. Using default ports: Backend=$svgBackendPort, Frontend=$svgFrontendPort" -ForegroundColor Yellow
 }
 
 # Kill any existing processes on our ports
@@ -47,9 +47,9 @@ try {
             Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
         }
         
-        $processId = Get-NetTCPConnection -LocalPort $webFrontendPort -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess
+        $processId = Get-NetTCPConnection -LocalPort $svgFrontendPort -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess
         if ($processId) {
-            Write-Host "Killing existing process on port $webFrontendPort..." -ForegroundColor Yellow
+            Write-Host "Killing existing process on port $svgFrontendPort..." -ForegroundColor Yellow
             Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
         }
     }
@@ -116,11 +116,11 @@ try {
 
 # Start the frontend development server
 if ($nodeAvailable) {
-    Write-Host "Starting frontend development server on port $webFrontendPort..." -ForegroundColor Cyan
+    Write-Host "Starting frontend development server on port $svgFrontendPort..." -ForegroundColor Cyan
     Set-Location web\frontend
     
     # Update the PORT environment variable for the React app
-    $env:PORT = $webFrontendPort
+    $env:PORT = $svgFrontendPort
     
     # Start the React app
     npm start
@@ -128,3 +128,5 @@ if ($nodeAvailable) {
 
 Write-Host ""
 Write-Host "Development environment is running." -ForegroundColor Green
+Write-Host "Backend API: http://localhost:$svgBackendPort" -ForegroundColor Cyan
+Write-Host "Frontend: http://localhost:$svgFrontendPort" -ForegroundColor Cyan

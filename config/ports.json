@@ -1,7 +1,9 @@
 {
-  "main_backend": 8000,
-  "svg_to_video_backend": 8001,
-  "web_backend": 8002,
-  "web_frontend": 3000,
-  "svg_to_video_frontend": 3001
+  "services": {
+    "main_backend": 8000,
+    "svg_to_video_backend": 8001,
+    "web_backend": 8002,
+    "web_frontend": 3000,
+    "svg_to_video_frontend": 3001
+  }
 }

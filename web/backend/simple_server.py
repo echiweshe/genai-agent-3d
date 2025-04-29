@@ -159,7 +159,7 @@ async def generate_svg_internal(concept: str, provider: str = None):
             
             # Generate with Claude
             message = anthropic_client.messages.create(
-                model="claude-3-sonnet-20240229",
+                model="claude-3-7-sonnet-20250219",  # Using latest Claude model
                 max_tokens=4000,
                 messages=[{"role": "user", "content": prompt}]
             )
@@ -246,4 +246,5 @@ if __name__ == "__main__":
     port = 8001
     print(f"Starting server on port {port}")
     uvicorn.run(app, host="0.0.0.0", port=port)
+
 

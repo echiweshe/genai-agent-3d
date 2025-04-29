@@ -1,0 +1,207 @@
+"""
+Claude Direct Integration for SVG Generation
+
+This module provides a direct integration with the Anthropic Claude API
+for generating SVG diagrams from text descriptions.
+"""
+
+import os
+import requests
+import json
+import logging
+from typing import Dict, Any, Optional, List, Tuple
+import re
+
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
+class ClaudeDirectSVGGenerator:
+    """A class for generating SVG diagrams directly through Claude API."""
+    
+    def __init__(self, api_key: Optional[str] = None):
+        """
+        Initialize the Claude Direct SVG Generator.
+        
+        Args:
+            api_key: Anthropic API key. If not provided, will attempt to load from environment.
+        """
+        self.api_key = api_key or os.environ.get("ANTHROPIC_API_KEY")
+        if not self.api_key:
+            raise ValueError("Anthropic API key not provided and not found in environment")
+        
+        self.api_url = "https://api.anthropic.com/v1/messages"
+        self.model = "claude-3-7-sonnet-20250219"  # Default to latest Claude model for high-quality SVGs
+        
+    def set_model(self, model_name: str) -> None:
+        """
+        Set the Claude model to use.
+        
+        Args:
+            model_name: The model name (e.g., 'claude-3-opus-20240229', 'claude-3-sonnet-20240229')
+        """
+        self.model = model_name
+        logger.info(f"Model set to: {model_name}")
+    
+    def generate_svg(self, concept: str, style: Optional[str] = None) -> str:
+        """
+        Generate an SVG diagram from a text description.
+        
+        Args:
+            concept: The concept to visualize as an SVG
+            style: Optional style guideline for the SVG
+            
+        Returns:
+            The generated SVG as a string
+        """
+        # Create the prompt with specific instructions
+        prompt = self._create_svg_prompt(concept, style)
+        
+        # Call the Claude API
+        response = self._call_claude_api(prompt)
+        
+        # Extract the SVG from the response
+        svg = self._extract_svg(response)
+        
+        return svg
+    
+    def _create_svg_prompt(self, concept: str, style: Optional[str] = None) -> str:
+        """
+        Create a prompt for Claude to generate an SVG.
+        
+        Args:
+            concept: The concept to visualize
+            style: Optional style guideline
+            
+        Returns:
+            A prompt string for Claude
+        """
+        base_prompt = f"""
+I need you to create an SVG diagram to visualize this concept:
+
+{concept}
+
+Requirements:
+1. Generate ONLY valid SVG code
+2. Use a viewBox with appropriate dimensions
+3. Include basic shapes, text, lines, and paths as needed
+4. Use clear colors and readable text
+5. Make the diagram informative and visually appealing
+6. Ensure all elements have proper positioning
+7. Use stroke and fill attributes appropriately
+8. Design for clarity and readability
+
+Your response should contain ONLY the raw SVG code without any additional text, code blocks, or explanations.
+"""
+        
+        if style:
+            base_prompt += f"\nAdditional style guidelines: {style}"
+        
+        return base_prompt
+    
+    def _call_claude_api(self, prompt: str) -> Dict[str, Any]:
+        """
+        Call the Claude API with the given prompt.
+        
+        Args:
+            prompt: The prompt for Claude
+            
+        Returns:
+            The Claude API response as a dictionary
+        """
+        headers = {
+            "x-api-key": self.api_key,
+            "anthropic-version": "2023-06-01",
+            "content-type": "application/json"
+        }
+        
+        payload = {
+            "model": self.model,
+            "max_tokens": 4000,
+            "temperature": 0.2,  # Lower temperature for more consistent output
+            "messages": [
+                {"role": "user", "content": prompt}
+            ]
+        }
+        
+        try:
+            logger.info(f"Calling Claude API with model: {self.model}")
+            response = requests.post(self.api_url, headers=headers, json=payload, timeout=120)
+            response.raise_for_status()
+            return response.json()
+        except requests.exceptions.RequestException as e:
+            logger.error(f"Error calling Claude API: {e}")
+            if hasattr(e, 'response') and e.response:
+                logger.error(f"Response status: {e.response.status_code}")
+                logger.error(f"Response body: {e.response.text}")
+            raise ValueError(f"Failed to generate SVG: {str(e)}")
+    
+    def _extract_svg(self, response: Dict[str, Any]) -> str:
+        """
+        Extract the SVG content from the Claude API response.
+        
+        Args:
+            response: The Claude API response
+            
+        Returns:
+            The extracted SVG content
+        """
+        try:
+            # Get the content from the response
+            content = response.get("content", [])
+            if not content:
+                raise ValueError("Empty response from Claude API")
+            
+            # Extract text from the content
+            text = ""
+            for item in content:
+                if item.get("type") == "text":
+                    text += item.get("text", "")
+            
+            # Try to extract SVG using regex
+            svg_match = re.search(r'<svg[^>]*>[\s\S]*<\/svg>', text)
+            if svg_match:
+                return svg_match.group(0)
+            
+            # If no SVG pattern found, return the text as is
+            # This is a fallback in case Claude returns just the raw SVG without any extra formatting
+            if text.strip().startswith("<svg") and text.strip().endswith("</svg>"):
+                return text.strip()
+            
+            raise ValueError("No SVG content found in the response")
+            
+        except Exception as e:
+            logger.error(f"Error extracting SVG: {e}")
+            raise ValueError(f"Failed to extract SVG from response: {str(e)}")
+    
+    def get_available_models(self) -> List[Dict[str, str]]:
+        """
+        Get a list of available Claude models for SVG generation.
+        
+        Returns:
+            A list of dictionaries containing model information
+        """
+        return [
+            {"id": "claude-3-7-sonnet-20250219", "name": "Claude-3.7 Sonnet", "description": "Latest model with highest quality SVGs and reasoning capabilities"},
+            {"id": "claude-3-opus-20240229", "name": "Claude-3 Opus", "description": "Highest quality SVGs with detailed elements"},
+            {"id": "claude-3-sonnet-20240229", "name": "Claude-3 Sonnet", "description": "Good balance of quality and speed"},
+            {"id": "claude-3-haiku-20240307", "name": "Claude-3 Haiku", "description": "Fastest generation with simpler designs"}
+        ]
+
+
+# Example usage
+if __name__ == "__main__":
+    # Load API key from environment
+    generator = ClaudeDirectSVGGenerator()
+    
+    # Example concept
+    concept = "A flowchart showing the process of user registration and authentication"
+    
+    # Generate SVG
+    svg = generator.generate_svg(concept)
+    
+    # Save to file
+    with open("output.svg", "w", encoding="utf-8") as f:
+        f.write(svg)
+    
+    print("SVG generated and saved to output.svg")
