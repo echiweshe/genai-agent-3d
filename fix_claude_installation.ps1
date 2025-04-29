@@ -1,3 +1,29 @@
+# PowerShell script to fix Claude integration issues
+
+Write-Host "Fixing Claude API Integration" -ForegroundColor Green
+Write-Host ""
+
+# Check if virtual environment exists
+if (-not (Test-Path "venv")) {
+    Write-Host "Virtual environment not found. Please run setup_svg_to_video.ps1 first." -ForegroundColor Red
+    exit 1
+}
+
+# Activate virtual environment
+& .\venv\Scripts\Activate.ps1
+
+Write-Host "Uninstalling current anthropic and langchain packages..." -ForegroundColor Yellow
+pip uninstall -y anthropic langchain
+
+Write-Host "Installing specific versions known to work together..." -ForegroundColor Cyan
+pip install anthropic==0.3.6 langchain==0.0.267
+
+Write-Host "Installing direct anthropic client..." -ForegroundColor Cyan
+pip install anthropic -U
+
+Write-Host "Creating test script to verify Claude API integration..." -ForegroundColor Cyan
+
+$testScriptContent = @"
 # Test script to verify Claude API integration
 import os
 import asyncio
@@ -46,3 +72,16 @@ if success:
 else:
     print("\nClaude API is still not working.")
     print("Please check your API key and environment setup.")
+"@
+
+Set-Content -Path "test_claude_api.py" -Value $testScriptContent
+
+Write-Host "Running test script..." -ForegroundColor Cyan
+python test_claude_api.py
+
+Write-Host ""
+Write-Host "Fix completed. If the test was successful, Claude should now be available as a provider." -ForegroundColor Green
+Write-Host "Try running the application again: .\run_simple_dev.ps1" -ForegroundColor Cyan
+Write-Host ""
+Write-Host "Press any key to continue..."
+$null = $Host.UI.RawUI.ReadKey("NoEcho,IncludeKeyDown")

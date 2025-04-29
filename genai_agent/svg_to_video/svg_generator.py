@@ -50,6 +50,36 @@ except ImportError:
 
 logger = logging.getLogger(__name__)
 
+# Manually fix the proxies issue for Claude API
+try:
+    if CLAUDE_AVAILABLE:
+        import inspect
+        from langchain.chat_models.anthropic import ChatAnthropic as OriginalChatAnthropic
+        
+        # Get the original signature
+        orig_sig = inspect.signature(OriginalChatAnthropic.__init__)
+        params = list(orig_sig.parameters.values())
+        
+        # Check if 'proxies' is in the default parameters
+        has_proxies = 'proxies' in orig_sig.parameters
+        
+        if has_proxies:
+            # Create a wrapper class that removes the proxies parameter
+            class FixedChatAnthropic(OriginalChatAnthropic):
+                def __init__(self, **kwargs):
+                    # Remove proxies from kwargs if present
+                    if 'proxies' in kwargs:
+                        del kwargs['proxies']
+                    super().__init__(**kwargs)
+            
+            # Replace the original with the fixed version
+            from langchain.chat_models import anthropic
+            anthropic.ChatAnthropic = FixedChatAnthropic
+            ChatAnthropic = FixedChatAnthropic
+            logger.info("Applied fix for proxies parameter in ChatAnthropic")
+except Exception as e:
+    logger.warning(f"Failed to apply Claude API fix: {str(e)}")
+
 class SVGGenerator:
     """Generate SVG diagrams using LangChain and various LLM providers."""
     
@@ -97,20 +127,38 @@ class SVGGenerator:
                 anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
                 if anthropic_api_key:
                     try:
-                        # Try initializing without proxies parameter
+                        # Direct initialization without proxies
+                        kwargs = {
+                            "temperature": 0.7
+                        }
+                        
+                        # Try with anthropic_api_key parameter first
                         try:
                             self.providers["claude"] = ChatAnthropic(
                                 anthropic_api_key=anthropic_api_key,
-                                temperature=0.7
+                                **kwargs
                             )
-                            logger.info("Initialized Claude provider")
-                        except TypeError:
-                            # If that fails, try the old way
-                            self.providers["claude"] = ChatAnthropic(
-                                api_key=anthropic_api_key,
-                                temperature=0.7
-                            )
-                            logger.info("Initialized Claude provider (legacy method)")
+                            logger.info("Initialized Claude provider with anthropic_api_key")
+                        except (TypeError, ValueError):
+                            # If that fails, try with api_key
+                            try:
+                                self.providers["claude"] = ChatAnthropic(
+                                    api_key=anthropic_api_key,
+                                    **kwargs
+                                )
+                                logger.info("Initialized Claude provider with api_key")
+                            except Exception as e:
+                                # Last resort: custom monkey-patched direct creation
+                                from anthropic import Anthropic
+                                from langchain.chat_models.anthropic import ChatAnthropic
+                                
+                                # Direct initialization without LangChain's wrapper
+                                anthropic_client = Anthropic(api_key=anthropic_api_key)
+                                
+                                # Create ChatAnthropic with the client
+                                chat_model = ChatAnthropic(client=anthropic_client, temperature=0.7)
+                                self.providers["claude"] = chat_model
+                                logger.info("Initialized Claude provider with direct client")
                     except Exception as e:
                         logger.error(f"Failed to initialize Claude provider: {str(e)}")
             
