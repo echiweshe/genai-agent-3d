@@ -1,175 +1,184 @@
-#!/usr/bin/env python
 """
-SVG to Video Pipeline CLI
+SVG to Video CLI
 
-This script provides a command-line interface to the SVG to Video pipeline.
-It allows users to generate SVGs, convert them to 3D models, and render videos.
+This script provides a command-line interface for the SVG to Video pipeline.
 """
 
 import os
 import sys
 import argparse
-import asyncio
-import logging
-from pathlib import Path
+import json
 
-# Add parent directory to sys.path to import genai_agent modules
-sys.path.insert(0, str(Path(__file__).parent.parent))
+# Add the parent directory to the Python path
+parent_dir = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+sys.path.append(parent_dir)
 
+from genai_agent.svg_to_video.llm_integrations.llm_factory import LLMFactory
 from genai_agent.svg_to_video.pipeline import SVGToVideoPipeline
-from genai_agent.svg_to_video.utils import check_blender_installation
+from genai_agent.svg_to_video.utils import ensure_directory_exists
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger("svg_video_cli")
+def list_providers():
+    """List all available LLM providers."""
+    factory = LLMFactory()
+    providers = factory.get_providers()
+    
+    print("Available LLM Providers:")
+    print("-----------------------")
+    
+    for provider in providers:
+        status = "✅ Available" if provider.get("available", False) else "❌ Not Available"
+        print(f"{provider['name']} ({provider['id']}): {status}")
+        
+        if provider.get("available", False) and "models" in provider:
+            print("  Models:")
+            for model in provider["models"]:
+                print(f"  - {model['name']} ({model['id']}): {model['description']}")
+        
+        if not provider.get("available", False) and "error" in provider:
+            print(f"  Error: {provider['error']}")
+        
+        print()
 
-async def main():
-    # Create argument parser
-    parser = argparse.ArgumentParser(description='SVG to Video Pipeline CLI')
+def generate_svg(args):
+    """Generate an SVG from a concept using the specified provider."""
+    factory = LLMFactory()
     
-    # Add global arguments
-    parser.add_argument('--blender-path', help='Path to Blender executable', default='blender')
-    parser.add_argument('--script-dir', help='Directory containing Blender scripts', 
-                      default=os.path.join(os.path.dirname(os.path.dirname(__file__)), 'genai_agent', 'scripts'))
-    parser.add_argument('--output-dir', help='Directory for output files', 
-                      default='outputs')
+    try:
+        print(f"Generating SVG for concept: '{args.concept}'")
+        print(f"Using provider: {args.provider}")
+        if args.model:
+            print(f"Using model: {args.model}")
+        
+        svg_content = factory.generate_svg(args.provider, args.concept, args.model, args.style)
+        
+        # Create output directory if needed
+        output_dir = os.path.dirname(args.output)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        
+        # Save SVG
+        with open(args.output, "w", encoding="utf-8") as f:
+            f.write(svg_content)
+        
+        print(f"SVG saved to: {args.output}")
+        return 0
+    except Exception as e:
+        print(f"Error: {str(e)}", file=sys.stderr)
+        return 1
+
+def convert_svg(args):
+    """Convert an SVG file to a video."""
+    pipeline = SVGToVideoPipeline()
     
-    # Add command subparsers
-    subparsers = parser.add_subparsers(dest='command', help='Command to run')
+    try:
+        print(f"Converting SVG: {args.input}")
+        print(f"Output video: {args.output}")
+        print(f"Animation type: {args.animation_type}")
+        print(f"Quality: {args.quality}")
+        
+        # Create output directory if needed
+        output_dir = os.path.dirname(args.output)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        
+        # Convert SVG to video
+        pipeline.convert_svg_to_video(args.input, args.output, args.animation_type, args.quality)
+        
+        print(f"Video saved to: {args.output}")
+        return 0
+    except Exception as e:
+        print(f"Error: {str(e)}", file=sys.stderr)
+        return 1
+
+def generate_video(args):
+    """Generate a video from a concept using the specified provider."""
+    factory = LLMFactory()
+    pipeline = SVGToVideoPipeline()
     
-    # Full pipeline command
-    pipeline_parser = subparsers.add_parser('generate', help='Generate video from concept')
-    pipeline_parser.add_argument('concept', help='Concept description for diagram generation')
-    pipeline_parser.add_argument('output', help='Output video file path')
-    pipeline_parser.add_argument('--provider', help='LLM provider for SVG generation')
-    pipeline_parser.add_argument('--quality', help='Rendering quality (low, medium, high)')
-    pipeline_parser.add_argument('--animation-type', help='Animation type (standard, flowchart, network)')
-    pipeline_parser.add_argument('--resolution', help='Video resolution (e.g. 1280x720)')
-    
-    # SVG-only command
-    svg_parser = subparsers.add_parser('svg', help='Generate SVG only')
-    svg_parser.add_argument('concept', help='Concept description for diagram generation')
-    svg_parser.add_argument('output', help='Output SVG file path')
-    svg_parser.add_argument('--provider', help='LLM provider for SVG generation')
-    
-    # Convert existing SVG command
-    convert_parser = subparsers.add_parser('convert', help='Convert existing SVG to video')
-    convert_parser.add_argument('svg_path', help='Input SVG file path')
-    convert_parser.add_argument('output', help='Output video file path')
-    convert_parser.add_argument('--quality', help='Rendering quality (low, medium, high)')
-    convert_parser.add_argument('--animation-type', help='Animation type (standard, flowchart, network)')
-    
-    # Check Blender command
-    check_parser = subparsers.add_parser('check', help='Check Blender installation')
-    check_parser.add_argument('--blender-path', help='Path to Blender executable', default='blender')
+    try:
+        print(f"Generating video for concept: '{args.concept}'")
+        print(f"Using provider: {args.provider}")
+        if args.model:
+            print(f"Using model: {args.model}")
+        print(f"Animation type: {args.animation_type}")
+        print(f"Quality: {args.quality}")
+        
+        # Create a temporary SVG file
+        temp_dir = os.path.join(parent_dir, "outputs", "temp")
+        ensure_directory_exists(temp_dir)
+        temp_svg = os.path.join(temp_dir, "temp_" + os.path.basename(args.output).replace(".mp4", ".svg"))
+        
+        # Generate SVG
+        print("Step 1: Generating SVG diagram...")
+        svg_content = factory.generate_svg(args.provider, args.concept, args.model, args.style)
+        
+        # Save SVG
+        with open(temp_svg, "w", encoding="utf-8") as f:
+            f.write(svg_content)
+        
+        print(f"SVG saved to temporary file: {temp_svg}")
+        
+        # Create output directory if needed
+        output_dir = os.path.dirname(args.output)
+        if output_dir and not os.path.exists(output_dir):
+            os.makedirs(output_dir)
+        
+        # Convert SVG to video
+        print("Step 2: Converting SVG to video...")
+        pipeline.convert_svg_to_video(temp_svg, args.output, args.animation_type, args.quality)
+        
+        print(f"Video saved to: {args.output}")
+        return 0
+    except Exception as e:
+        print(f"Error: {str(e)}", file=sys.stderr)
+        return 1
+
+def main():
+    """Main entry point for the CLI."""
+    parser = argparse.ArgumentParser(description="SVG to Video CLI")
+    subparsers = parser.add_subparsers(dest="command", help="Command to run")
     
     # List providers command
-    list_parser = subparsers.add_parser('list-providers', help='List available LLM providers')
+    list_parser = subparsers.add_parser("list-providers", help="List available LLM providers")
     
-    # Parse arguments
+    # Generate SVG command
+    svg_parser = subparsers.add_parser("svg", help="Generate an SVG from a concept")
+    svg_parser.add_argument("concept", help="The concept to visualize as an SVG")
+    svg_parser.add_argument("output", help="Path to save the generated SVG file")
+    svg_parser.add_argument("--provider", default="claude", help="The LLM provider to use")
+    svg_parser.add_argument("--model", help="The specific model to use")
+    svg_parser.add_argument("--style", help="Optional style guidelines for the SVG")
+    
+    # Convert SVG command
+    convert_parser = subparsers.add_parser("convert", help="Convert an SVG file to a video")
+    convert_parser.add_argument("input", help="Path to the input SVG file")
+    convert_parser.add_argument("output", help="Path to save the output video file")
+    convert_parser.add_argument("--animation-type", default="standard", choices=["standard", "flowchart", "network"], help="Type of animation to apply")
+    convert_parser.add_argument("--quality", default="medium", choices=["low", "medium", "high"], help="Rendering quality")
+    
+    # Generate video command
+    generate_parser = subparsers.add_parser("generate", help="Generate a video from a concept")
+    generate_parser.add_argument("concept", help="The concept to visualize as a video")
+    generate_parser.add_argument("output", help="Path to save the generated video file")
+    generate_parser.add_argument("--provider", default="claude", help="The LLM provider to use for SVG generation")
+    generate_parser.add_argument("--model", help="The specific model to use for SVG generation")
+    generate_parser.add_argument("--style", help="Optional style guidelines for the SVG")
+    generate_parser.add_argument("--animation-type", default="standard", choices=["standard", "flowchart", "network"], help="Type of animation to apply")
+    generate_parser.add_argument("--quality", default="medium", choices=["low", "medium", "high"], help="Rendering quality")
+    
     args = parser.parse_args()
     
-    # If no command is specified, show help
-    if args.command is None:
+    if args.command == "list-providers":
+        return list_providers()
+    elif args.command == "svg":
+        return generate_svg(args)
+    elif args.command == "convert":
+        return convert_svg(args)
+    elif args.command == "generate":
+        return generate_video(args)
+    else:
         parser.print_help()
-        return
-    
-    # Create configuration
-    config = {
-        "blender_path": args.blender_path,
-        "script_dir": args.script_dir,
-        "output_dir": args.output_dir,
-        "cleanup_temp": True  # Default to clean up temporary files
-    }
-    
-    # Ensure output directory exists
-    os.makedirs(args.output_dir, exist_ok=True)
-    
-    # Check command
-    if args.command == 'check':
-        # Check Blender installation
-        is_available, version_info = check_blender_installation(args.blender_path)
-        if is_available:
-            logger.info(f"Blender is available: {version_info}")
-        else:
-            logger.error(f"Blender is not available: {version_info}")
-        return
-    
-    # Create pipeline
-    pipeline = SVGToVideoPipeline(config)
-    
-    # List providers command
-    if args.command == 'list-providers':
-        providers = pipeline.get_available_providers()
-        if providers:
-            logger.info(f"Available LLM providers: {', '.join(providers)}")
-        else:
-            logger.warning("No LLM providers available. Please check API keys.")
-        return
-    
-    # Generate video from concept
-    if args.command == 'generate':
-        options = {}
-        
-        # Add provider if specified
-        if args.provider:
-            options["provider"] = args.provider
-        
-        # Add rendering options if specified
-        if args.quality:
-            options["render_quality"] = args.quality
-        
-        # Add animation options if specified
-        if args.animation_type:
-            options["animation_type"] = args.animation_type
-        
-        # Add resolution if specified
-        if args.resolution:
-            try:
-                width, height = map(int, args.resolution.split('x'))
-                options["resolution"] = (width, height)
-            except ValueError:
-                logger.warning(f"Invalid resolution format: {args.resolution}, using default")
-        
-        # Process through pipeline
-        result = await pipeline.process(args.concept, args.output, options)
-        
-        if result["status"] == "success":
-            logger.info(f"Video generated successfully: {result['output_path']}")
-        else:
-            logger.error(f"Error generating video: {result.get('error', 'Unknown error')}")
-    
-    # Generate SVG only
-    elif args.command == 'svg':
-        provider = args.provider if args.provider else None
-        result = await pipeline.generate_svg_only(args.concept, args.output, provider)
-        
-        if result["status"] == "success":
-            logger.info(f"SVG generated successfully: {result.get('output_path', 'No output path specified')}")
-        else:
-            logger.error(f"Error generating SVG: {result.get('error', 'Unknown error')}")
-    
-    # Convert existing SVG
-    elif args.command == 'convert':
-        options = {}
-        
-        # Add rendering options if specified
-        if args.quality:
-            options["render_quality"] = args.quality
-        
-        # Add animation options if specified
-        if args.animation_type:
-            options["animation_type"] = args.animation_type
-        
-        result = await pipeline.convert_existing_svg(args.svg_path, args.output, options)
-        
-        if result["status"] == "success":
-            logger.info(f"Video generated successfully: {result['output_path']}")
-        else:
-            logger.error(f"Error generating video: {result.get('error', 'Unknown error')}")
+        return 1
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    sys.exit(main())

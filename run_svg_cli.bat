@@ -1,17 +1,35 @@
 @echo off
-REM Check if virtual environment exists
-if not exist venv (
-    echo Virtual environment not found. Please run setup_svg_to_video.bat first.
-    exit /b 1
-)
+:: SVG to Video CLI Runner
+:: This script runs the SVG to Video CLI with the provided arguments
 
-REM Load environment variables from .env file if it exists
-if exist .env (
-    for /F "tokens=*" %%A in (.env) do (
-        set %%A
+:: Set the project root directory
+set PROJECT_ROOT=%~dp0
+
+:: Check if virtual environment exists
+if not exist "%PROJECT_ROOT%venv\Scripts\activate.bat" (
+    echo Virtual environment not found. Creating new virtual environment...
+    python -m venv "%PROJECT_ROOT%venv"
+    
+    if %errorlevel% neq 0 (
+        echo Failed to create virtual environment. Please install Python 3.9+ and try again.
+        exit /b 1
     )
+    
+    :: Install dependencies
+    call "%PROJECT_ROOT%venv\Scripts\activate.bat"
+    pip install -r "%PROJECT_ROOT%web\backend\requirements.txt"
+    
+    if %errorlevel% neq 0 (
+        echo Failed to install dependencies. Please check your pip installation.
+        exit /b 1
+    )
+) else (
+    :: Activate the virtual environment
+    call "%PROJECT_ROOT%venv\Scripts\activate.bat"
 )
 
-REM Activate virtual environment and run CLI
-call venv\Scripts\activate
-python cli\svg_video_cli.py %*
+:: Run the CLI
+python "%PROJECT_ROOT%cli\svg_video_cli.py" %*
+
+:: Deactivate the virtual environment
+deactivate

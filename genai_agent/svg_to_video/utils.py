@@ -1,109 +1,62 @@
 """
-SVG to Video Utilities
+Utility Functions for SVG to Video Pipeline
 
 This module provides utility functions for the SVG to Video pipeline.
 """
 
-import re
 import os
+import sys
+import shutil
 import logging
-import tempfile
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Optional
+from fastapi import UploadFile
 
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-def validate_svg(svg_content: str) -> Tuple[bool, str]:
-    """
-    Validate SVG content for security and correctness.
-    
-    Args:
-        svg_content: SVG content to validate
-        
-    Returns:
-        Tuple of (is_valid, message)
-    """
-    # Check for basic SVG structure
-    if not svg_content.strip().startswith("<svg") or "</svg>" not in svg_content:
-        return False, "Invalid SVG structure: missing <svg> tags"
-    
-    try:
-        # Check for script tags (security risk)
-        if re.search(r'<script\b[^<]*(?:(?!</script>)<[^<]*)*</script>', svg_content, re.IGNORECASE):
-            return False, "SVG contains script elements, which are not allowed"
-        
-        # Check for external references (security risk)
-        if re.search(r'href\s*=\s*["\'](?:https?:|data:|javascript:)', svg_content, re.IGNORECASE):
-            return False, "SVG contains external references, which are not allowed"
-        
-        # SVG seems valid and safe
-        return True, "SVG is valid"
-        
-    except Exception as e:
-        logger.error(f"Error validating SVG: {str(e)}")
-        return False, f"Error validating SVG: {str(e)}"
-
-def create_temp_file(content: str, suffix: str = ".svg") -> str:
-    """
-    Create a temporary file with the given content.
-    
-    Args:
-        content: Content to write to the file
-        suffix: File suffix
-        
-    Returns:
-        Path to the temporary file
-    """
-    fd, temp_path = tempfile.mkstemp(suffix=suffix)
-    try:
-        with os.fdopen(fd, "w") as f:
-            f.write(content)
-        return temp_path
-    except Exception as e:
-        # Clean up if an error occurs
-        if os.path.exists(temp_path):
-            os.unlink(temp_path)
-        raise
-
-def check_blender_installation(blender_path: str = "blender") -> Tuple[bool, str]:
-    """
-    Check if Blender is installed and available.
-    
-    Args:
-        blender_path: Path to the Blender executable
-        
-    Returns:
-        Tuple of (is_available, version_info)
-    """
-    import subprocess
-    
-    try:
-        result = subprocess.run(
-            [blender_path, "--version"], 
-            capture_output=True, 
-            text=True, 
-            timeout=10
-        )
-        
-        if result.returncode == 0:
-            version_info = result.stdout.strip()
-            return True, version_info
-        else:
-            return False, f"Blender returned error code: {result.returncode}"
-    
-    except FileNotFoundError:
-        return False, f"Blender executable not found at: {blender_path}"
-    except subprocess.TimeoutExpired:
-        return False, "Checking Blender version timed out"
-    except Exception as e:
-        return False, f"Error checking Blender installation: {str(e)}"
-
-def ensure_directory_exists(path: str) -> None:
+def ensure_directory_exists(directory_path: str) -> None:
     """
     Ensure that a directory exists, creating it if necessary.
     
     Args:
-        path: Directory path to check/create
+        directory_path: The path to the directory to ensure exists
     """
-    if not os.path.exists(path):
-        os.makedirs(path, exist_ok=True)
-        logger.info(f"Created directory: {path}")
+    if not os.path.exists(directory_path):
+        os.makedirs(directory_path, exist_ok=True)
+        logger.info(f"Created directory: {directory_path}")
+
+def save_uploaded_file(file: UploadFile, destination: str) -> str:
+    """
+    Save an uploaded file to a destination path.
+    
+    Args:
+        file: The uploaded file
+        destination: The destination path
+        
+    Returns:
+        The path to the saved file
+    """
+    # Ensure the destination directory exists
+    ensure_directory_exists(os.path.dirname(destination))
+    
+    # Save the file
+    with open(destination, "wb") as buffer:
+        shutil.copyfileobj(file.file, buffer)
+    
+    return destination
+
+def load_dotenv_from_parent() -> None:
+    """
+    Load environment variables from the .env file in the parent directory.
+    """
+    from dotenv import load_dotenv
+    
+    parent_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+    env_path = os.path.join(parent_dir, ".env")
+    
+    if os.path.exists(env_path):
+        load_dotenv(env_path)
+        logger.info(f"Loaded environment variables from {env_path}")
+    else:
+        logger.warning(f".env file not found at {env_path}")

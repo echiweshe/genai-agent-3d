@@ -1,278 +1,295 @@
 """
-SVG to Video API Routes
+API Routes for SVG to Video Pipeline
 
-This module provides FastAPI routes for the SVG to Video pipeline.
+This module defines the API routes for the SVG to Video pipeline.
 """
 
 import os
-import logging
-from typing import List, Dict, Any, Optional
-from fastapi import APIRouter, HTTPException, BackgroundTasks, UploadFile, File, Form, Body
+import json
+import tempfile
+import uuid
+from fastapi import APIRouter, File, UploadFile, Form, HTTPException, Body, Query
+from fastapi.responses import FileResponse, JSONResponse
 from pydantic import BaseModel
-from pathlib import Path
+from typing import Dict, List, Optional, Any, Union
 
-# Import the pipeline
+from genai_agent.svg_to_video.llm_integrations.llm_factory import LLMFactory
 from genai_agent.svg_to_video.pipeline import SVGToVideoPipeline
-from genai_agent.svg_to_video.utils import validate_svg, create_temp_file
+from genai_agent.svg_to_video.utils import save_uploaded_file, ensure_directory_exists
 
-# Configure logging
-logger = logging.getLogger("svg_video_api")
+# Import port configurations
+import sys
+import os
+config_path = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "config", "ports.json")
+try:
+    with open(config_path, "r") as f:
+        ports_config = json.load(f)
+except Exception as e:
+    print(f"Warning: Could not load port configuration: {e}")
+    ports_config = {"services": {"svg_to_video_backend": 8001}}
+
+# Load the port for the SVG to Video backend
+SVG_VIDEO_PORT = ports_config.get("services", {}).get("svg_to_video_backend", 8001)
 
 # Create router
-router = APIRouter(prefix="/api/svg-to-video", tags=["SVG to Video"])
+router = APIRouter(prefix="/api/svg-to-video")
 
-# Create pipeline instance
-pipeline = SVGToVideoPipeline({
-    "blender_path": os.environ.get("BLENDER_PATH", "blender"),
-    "script_dir": os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), 
-                              'genai_agent', 'scripts'),
-    "output_dir": os.environ.get("OUTPUT_DIR", "outputs"),
-    "cleanup_temp": True
-})
+# Initialize LLM factory
+llm_factory = LLMFactory()
 
-# Background tasks storage
-background_tasks = {}
+# Create a task manager to keep track of running tasks
+task_manager = {}
+
+# Create pipeline
+pipeline = SVGToVideoPipeline()
 
 # Model definitions
 class GenerateSVGRequest(BaseModel):
     concept: str
-    provider: Optional[str] = None
+    provider: str = "claude"
+    model: Optional[str] = None
+    style: Optional[str] = None
+
+class ConvertSVGRequest(BaseModel):
+    svg_content: str
+    animation_type: str = "standard"
+    quality: str = "medium"
 
 class GenerateVideoRequest(BaseModel):
     concept: str
-    provider: Optional[str] = None
-    render_quality: Optional[str] = None
-    animation_type: Optional[str] = None
-    resolution: Optional[List[int]] = None
+    provider: str = "claude"
+    model: Optional[str] = None
+    style: Optional[str] = None
+    animation_type: str = "standard"
+    quality: str = "medium"
 
-class ConvertSVGRequest(BaseModel):
-    render_quality: Optional[str] = None
-    animation_type: Optional[str] = None
-    resolution: Optional[List[int]] = None
-
-class TaskStatusResponse(BaseModel):
+class TaskStatus(BaseModel):
     task_id: str
     status: str
-    progress: Optional[float] = None
-    result: Optional[Dict[str, Any]] = None
+    progress: float = 0.0
+    result: Optional[str] = None
     error: Optional[str] = None
 
-# Background task handler
-async def process_video_generation(task_id: str, concept: str, output_path: str, options: Dict[str, Any]):
-    try:
-        background_tasks[task_id] = {"status": "running", "progress": 0}
-        
-        # Update progress
-        background_tasks[task_id]["progress"] = 10
-        
-        # Process through pipeline
-        result = await pipeline.process(concept, output_path, options)
-        
-        if result["status"] == "success":
-            background_tasks[task_id] = {
-                "status": "completed", 
-                "progress": 100,
-                "result": result
-            }
-            logger.info(f"Task {task_id} completed successfully")
-        else:
-            background_tasks[task_id] = {
-                "status": "failed", 
-                "progress": 100,
-                "error": result.get("error", "Unknown error")
-            }
-            logger.error(f"Task {task_id} failed: {result.get('error')}")
-    
-    except Exception as e:
-        background_tasks[task_id] = {
-            "status": "failed", 
-            "progress": 100,
-            "error": str(e)
-        }
-        logger.exception(f"Task {task_id} failed with exception")
-
 # Routes
-@router.get("/providers", response_model=List[str])
-async def list_providers():
+@router.get("/providers")
+async def get_providers() -> List[Dict[str, Any]]:
     """Get a list of available LLM providers."""
-    providers = pipeline.get_available_providers()
-    return providers
+    return llm_factory.get_providers()
 
 @router.post("/generate-svg")
-async def generate_svg(request: GenerateSVGRequest):
-    """Generate an SVG diagram from a concept."""
-    try:
-        # Generate SVG
-        result = await pipeline.generate_svg_only(
-            request.concept,
-            provider=request.provider
-        )
-        
-        if result["status"] != "success":
-            raise HTTPException(status_code=500, detail=result.get("error", "SVG generation failed"))
-        
-        # Return SVG content
-        return {"svg_content": result["svg_content"]}
+async def generate_svg(
+    request: Union[GenerateSVGRequest, None] = None,
+    concept: str = Form(None),
+    provider: str = Form("claude"),
+    model: Optional[str] = Form(None),
+    style: Optional[str] = Form(None)
+) -> Dict[str, str]:
+    """
+    Generate an SVG diagram from a concept.
     
-    except Exception as e:
-        logger.exception("SVG generation error")
-        raise HTTPException(status_code=500, detail=str(e))
-
-@router.post("/generate-video")
-async def generate_video(
-    background_tasks: BackgroundTasks,
-    request: GenerateVideoRequest
-):
-    """Generate a video from a concept description."""
-    try:
-        # Generate task ID
-        import uuid
-        task_id = str(uuid.uuid4())
-        
-        # Create output filename
-        output_filename = f"video_{task_id}.mp4"
-        output_path = os.path.join(os.environ.get("OUTPUT_DIR", "outputs"), output_filename)
-        
-        # Create options
-        options = {}
-        
-        if request.provider:
-            options["provider"] = request.provider
-        
-        if request.render_quality:
-            options["render_quality"] = request.render_quality
-        
-        if request.animation_type:
-            options["animation_type"] = request.animation_type
-        
-        if request.resolution and len(request.resolution) == 2:
-            options["resolution"] = tuple(request.resolution)
-        
-        # Initialize task status
-        background_tasks[task_id] = {"status": "queued", "progress": 0}
-        
-        # Start background task
-        background_tasks.add_task(
-            process_video_generation,
-            task_id,
-            request.concept,
-            output_path,
-            options
-        )
-        
-        # Return task ID
-        return {"task_id": task_id, "status": "queued"}
+    Accepts either a JSON request body or form data.
+    """
+    # Handle both JSON and form data
+    if request is not None:
+        concept = request.concept
+        provider = request.provider
+        model = request.model
+        style = request.style
+    elif concept is None:
+        raise HTTPException(status_code=400, detail="Concept is required")
     
+    try:
+        svg_content = llm_factory.generate_svg(provider, concept, model, style)
+        
+        # Create a temporary file for the SVG
+        output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "outputs")
+        ensure_directory_exists(output_dir)
+        
+        file_id = str(uuid.uuid4())
+        svg_file = os.path.join(output_dir, f"{file_id}.svg")
+        
+        # Save the SVG
+        with open(svg_file, "w", encoding="utf-8") as f:
+            f.write(svg_content)
+        
+        return {
+            "svg_content": svg_content,
+            "file_id": file_id,
+            "file_path": svg_file
+        }
     except Exception as e:
-        logger.exception("Video generation task creation error")
         raise HTTPException(status_code=500, detail=str(e))
 
 @router.post("/convert-svg")
 async def convert_svg(
-    background_tasks: BackgroundTasks,
-    svg_file: UploadFile = File(...),
-    render_quality: Optional[str] = Form(None),
-    animation_type: Optional[str] = Form(None),
-    resolution_width: Optional[int] = Form(None),
-    resolution_height: Optional[int] = Form(None)
-):
-    """Convert an uploaded SVG file to video."""
+    svg_file: Optional[UploadFile] = File(None),
+    svg_content: Optional[str] = Form(None),
+    animation_type: str = Form("standard"),
+    quality: str = Form("medium")
+) -> Dict[str, str]:
+    """
+    Convert an SVG file to a video.
+    
+    Accepts either an uploaded SVG file or SVG content as form data.
+    """
     try:
-        # Generate task ID
-        import uuid
+        output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "outputs")
+        ensure_directory_exists(output_dir)
+        
+        # Generate unique IDs for input and output files
+        file_id = str(uuid.uuid4())
+        
+        # Handle uploaded file or content
+        if svg_file:
+            svg_path = os.path.join(output_dir, f"{file_id}.svg")
+            save_uploaded_file(svg_file, svg_path)
+        elif svg_content:
+            svg_path = os.path.join(output_dir, f"{file_id}.svg")
+            with open(svg_path, "w", encoding="utf-8") as f:
+                f.write(svg_content)
+        else:
+            raise HTTPException(status_code=400, detail="Either svg_file or svg_content must be provided")
+        
+        # Create a task ID
         task_id = str(uuid.uuid4())
         
-        # Create output filename
-        output_filename = f"video_{task_id}.mp4"
-        output_path = os.path.join(os.environ.get("OUTPUT_DIR", "outputs"), output_filename)
+        # Start conversion in a background task
+        output_path = os.path.join(output_dir, f"{file_id}.mp4")
+        task_manager[task_id] = {
+            "status": "pending",
+            "progress": 0.0,
+            "result": None,
+            "error": None
+        }
         
-        # Save uploaded SVG to temporary file
-        svg_content = await svg_file.read()
-        svg_content_str = svg_content.decode("utf-8")
+        # Start a background task to convert SVG to video
+        # For now, just update the task status
+        # In a real implementation, this would start a background task
+        task_manager[task_id]["status"] = "processing"
         
-        # Validate SVG
-        is_valid, message = validate_svg(svg_content_str)
-        if not is_valid:
-            raise HTTPException(status_code=400, detail=f"Invalid SVG: {message}")
+        # Run the pipeline
+        try:
+            pipeline.convert_svg_to_video(svg_path, output_path, animation_type, quality)
+            task_manager[task_id]["status"] = "completed"
+            task_manager[task_id]["progress"] = 1.0
+            task_manager[task_id]["result"] = output_path
+        except Exception as e:
+            task_manager[task_id]["status"] = "failed"
+            task_manager[task_id]["error"] = str(e)
+            raise
         
-        # Create temporary file
-        temp_svg_path = create_temp_file(svg_content_str, ".svg")
-        
-        # Create options
-        options = {}
-        
-        if render_quality:
-            options["render_quality"] = render_quality
-        
-        if animation_type:
-            options["animation_type"] = animation_type
-        
-        if resolution_width and resolution_height:
-            options["resolution"] = (resolution_width, resolution_height)
-        
-        # Initialize task status
-        background_tasks[task_id] = {"status": "queued", "progress": 0}
-        
-        # Define background task
-        async def process_svg_conversion(task_id, svg_path, output_path, options):
-            try:
-                background_tasks[task_id] = {"status": "running", "progress": 0}
-                
-                # Convert SVG to video
-                result = await pipeline.convert_existing_svg(svg_path, output_path, options)
-                
-                if result["status"] == "success":
-                    background_tasks[task_id] = {
-                        "status": "completed", 
-                        "progress": 100,
-                        "result": result
-                    }
-                    logger.info(f"Task {task_id} completed successfully")
-                else:
-                    background_tasks[task_id] = {
-                        "status": "failed", 
-                        "progress": 100,
-                        "error": result.get("error", "Unknown error")
-                    }
-                    logger.error(f"Task {task_id} failed: {result.get('error')}")
-                
-                # Clean up temporary file
-                try:
-                    os.unlink(svg_path)
-                except Exception as e:
-                    logger.warning(f"Failed to delete temporary file: {e}")
-                
-            except Exception as e:
-                background_tasks[task_id] = {
-                    "status": "failed", 
-                    "progress": 100,
-                    "error": str(e)
-                }
-                logger.exception(f"Task {task_id} failed with exception")
-        
-        # Start background task
-        background_tasks.add_task(
-            process_svg_conversion,
-            task_id,
-            temp_svg_path,
-            output_path,
-            options
-        )
-        
-        # Return task ID
-        return {"task_id": task_id, "status": "queued"}
-    
+        return {
+            "task_id": task_id,
+            "status": "processing"
+        }
     except Exception as e:
-        logger.exception("SVG conversion task creation error")
         raise HTTPException(status_code=500, detail=str(e))
 
-@router.get("/task/{task_id}", response_model=TaskStatusResponse)
-async def get_task_status(task_id: str):
+@router.post("/generate-video")
+async def generate_video(
+    request: Union[GenerateVideoRequest, None] = None,
+    concept: str = Form(None),
+    provider: str = Form("claude"),
+    model: Optional[str] = Form(None),
+    style: Optional[str] = Form(None),
+    animation_type: str = Form("standard"),
+    quality: str = Form("medium")
+) -> Dict[str, str]:
+    """
+    Generate a video from a concept description.
+    
+    Accepts either a JSON request body or form data.
+    """
+    # Handle both JSON and form data
+    if request is not None:
+        concept = request.concept
+        provider = request.provider
+        model = request.model
+        style = request.style
+        animation_type = request.animation_type
+        quality = request.quality
+    elif concept is None:
+        raise HTTPException(status_code=400, detail="Concept is required")
+    
+    try:
+        # Generate SVG
+        svg_content = llm_factory.generate_svg(provider, concept, model, style)
+        
+        # Create temporary files
+        output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "outputs")
+        ensure_directory_exists(output_dir)
+        
+        file_id = str(uuid.uuid4())
+        svg_path = os.path.join(output_dir, f"{file_id}.svg")
+        output_path = os.path.join(output_dir, f"{file_id}.mp4")
+        
+        # Save the SVG
+        with open(svg_path, "w", encoding="utf-8") as f:
+            f.write(svg_content)
+        
+        # Create a task ID
+        task_id = str(uuid.uuid4())
+        
+        # Initialize task status
+        task_manager[task_id] = {
+            "status": "pending",
+            "progress": 0.0,
+            "result": None,
+            "error": None
+        }
+        
+        # Start a background task to convert SVG to video
+        # For now, just update the task status
+        # In a real implementation, this would start a background task
+        task_manager[task_id]["status"] = "processing"
+        
+        # Run the pipeline
+        try:
+            pipeline.convert_svg_to_video(svg_path, output_path, animation_type, quality)
+            task_manager[task_id]["status"] = "completed"
+            task_manager[task_id]["progress"] = 1.0
+            task_manager[task_id]["result"] = output_path
+        except Exception as e:
+            task_manager[task_id]["status"] = "failed"
+            task_manager[task_id]["error"] = str(e)
+            raise
+        
+        return {
+            "task_id": task_id,
+            "status": "processing",
+            "svg_content": svg_content
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=str(e))
+
+@router.get("/task/{task_id}")
+async def get_task_status(task_id: str) -> TaskStatus:
     """Get the status of a task."""
-    if task_id not in background_tasks:
+    if task_id not in task_manager:
         raise HTTPException(status_code=404, detail=f"Task {task_id} not found")
     
-    return {
-        "task_id": task_id,
-        **background_tasks[task_id]
-    }
+    task = task_manager[task_id]
+    return TaskStatus(
+        task_id=task_id,
+        status=task["status"],
+        progress=task["progress"],
+        result=task["result"],
+        error=task["error"]
+    )
+
+@router.get("/download/{file_id}")
+async def download_file(file_id: str) -> FileResponse:
+    """Download a generated file."""
+    output_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "outputs")
+    
+    # Check for video file
+    video_path = os.path.join(output_dir, f"{file_id}.mp4")
+    if os.path.exists(video_path):
+        return FileResponse(video_path, media_type="video/mp4", filename=f"{file_id}.mp4")
+    
+    # Check for SVG file
+    svg_path = os.path.join(output_dir, f"{file_id}.svg")
+    if os.path.exists(svg_path):
+        return FileResponse(svg_path, media_type="image/svg+xml", filename=f"{file_id}.svg")
+    
+    raise HTTPException(status_code=404, detail=f"File {file_id} not found")

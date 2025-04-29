@@ -3,14 +3,27 @@
 
 # Import port configurations
 $scriptPath = $PSScriptRoot
-$configPath = Join-Path $scriptPath "config" "ports.json"
+$configPath = Join-Path -Path $scriptPath -ChildPath "config\ports.json"
 
 function Get-PortsFromConfig {
     try {
-        $config = Get-Content -Path $configPath -Raw | ConvertFrom-Json
-        return $config.services
+        if (Test-Path -Path $configPath) {
+            $config = Get-Content -Path $configPath -Raw | ConvertFrom-Json
+            return $config.services
+        } else {
+            Write-Warning "Config file not found at: $configPath"
+            # Return default ports
+            return @{
+                main_backend = 8000
+                svg_to_video_backend = 8001
+                web_backend = 8002
+                web_frontend = 3000
+                svg_to_video_frontend = 3001
+            }
+        }
     } catch {
-        Write-Warning "Could not load port configuration: $_"
+        $errorMsg = $_.Exception.Message
+        Write-Warning "Could not load port configuration: $errorMsg"
         # Return default ports
         return @{
             main_backend = 8000
@@ -31,30 +44,35 @@ Write-Host "          Killing all server processes        " -ForegroundColor Cya
 Write-Host "==============================================" -ForegroundColor Cyan
 
 # Kill processes by port
-foreach ($service in $ports.PSObject.Properties) {
-    $port = $service.Value
-    $serviceName = $service.Name
-    
-    Write-Host "Checking for processes on port $port ($serviceName)..." -ForegroundColor Yellow
-    
-    # Find processes using the port
-    $processesUsingPort = netstat -ano | Select-String ":$port " | ForEach-Object { ($_ -split '\s+')[5] } | Sort-Object -Unique
-    
-    if ($processesUsingPort) {
-        foreach ($pid in $processesUsingPort) {
-            try {
-                $process = Get-Process -Id $pid -ErrorAction SilentlyContinue
-                if ($process) {
-                    Write-Host "Killing process: $($process.ProcessName) (PID: $pid) on port $port" -ForegroundColor Red
-                    Stop-Process -Id $pid -Force
+if ($ports -is [System.Collections.IDictionary]) {
+    foreach ($key in $ports.Keys) {
+        $port = $ports[$key]
+        $serviceName = $key
+        
+        Write-Host "Checking for processes on port $port ($serviceName)..." -ForegroundColor Yellow
+        
+        # Find processes using the port
+        $processesUsingPort = netstat -ano | Select-String ":$port " | ForEach-Object { ($_ -split '\s+')[5] } | Sort-Object -Unique
+        
+        if ($processesUsingPort) {
+            foreach ($pid in $processesUsingPort) {
+                try {
+                    $process = Get-Process -Id $pid -ErrorAction SilentlyContinue
+                    if ($process) {
+                        Write-Host "Killing process: $($process.ProcessName) (PID: $pid) on port $port" -ForegroundColor Red
+                        Stop-Process -Id $pid -Force
+                    }
+                } catch {
+                    $errorMsg = $_.Exception.Message
+                    Write-Warning "Failed to kill process with PID $pid`: $errorMsg"
                 }
-            } catch {
-                Write-Warning "Failed to kill process with PID $pid: $_"
             }
+        } else {
+            Write-Host "No processes found using port $port" -ForegroundColor Green
         }
-    } else {
-        Write-Host "No processes found using port $port" -ForegroundColor Green
     }
+} else {
+    Write-Warning "Port configuration is not in expected format. Cannot kill processes by port."
 }
 
 # Also check for Python and Node processes that might be related to our project
@@ -66,13 +84,18 @@ $pythonProcesses = Get-WmiObject Win32_Process | Where-Object {
     $_.CommandLine -like "*python*" -and $_.CommandLine -like "*$projectDir*" 
 }
 
-foreach ($process in $pythonProcesses) {
-    Write-Host "Killing Python process: PID $($process.ProcessId)" -ForegroundColor Red
-    try {
-        Stop-Process -Id $process.ProcessId -Force
-    } catch {
-        Write-Warning "Failed to kill Python process with PID $($process.ProcessId): $_"
+if ($pythonProcesses) {
+    foreach ($process in $pythonProcesses) {
+        Write-Host "Killing Python process: PID $($process.ProcessId)" -ForegroundColor Red
+        try {
+            Stop-Process -Id $process.ProcessId -Force
+        } catch {
+            $errorMsg = $_.Exception.Message
+            Write-Warning "Failed to kill Python process with PID $($process.ProcessId)``: $errorMsg"
+        }
     }
+} else {
+    Write-Host "No Python processes found related to the project" -ForegroundColor Green
 }
 
 # Find all node processes running scripts from our project directory
@@ -80,13 +103,18 @@ $nodeProcesses = Get-WmiObject Win32_Process | Where-Object {
     $_.CommandLine -like "*node*" -and $_.CommandLine -like "*$projectDir*" 
 }
 
-foreach ($process in $nodeProcesses) {
-    Write-Host "Killing Node.js process: PID $($process.ProcessId)" -ForegroundColor Red
-    try {
-        Stop-Process -Id $process.ProcessId -Force
-    } catch {
-        Write-Warning "Failed to kill Node.js process with PID $($process.ProcessId): $_"
+if ($nodeProcesses) {
+    foreach ($process in $nodeProcesses) {
+        Write-Host "Killing Node.js process: PID $($process.ProcessId)" -ForegroundColor Red
+        try {
+            Stop-Process -Id $process.ProcessId -Force
+        } catch {
+            $errorMsg = $_.Exception.Message
+            Write-Warning "Failed to kill Node.js process with PID $($process.ProcessId)``: $errorMsg"
+        }
     }
+} else {
+    Write-Host "No Node.js processes found related to the project" -ForegroundColor Green
 }
 
 Write-Host "==============================================" -ForegroundColor Cyan

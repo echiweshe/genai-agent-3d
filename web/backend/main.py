@@ -1,45 +1,51 @@
 """
-GenAI Agent 3D - Backend API
+SVG to Video Backend Server
 
-This is the main FastAPI application that serves the backend API for the GenAI Agent 3D project.
-It integrates with the SVG to Video pipeline and provides endpoints for generating SVGs, 
-converting them to 3D models, and rendering videos.
+This module provides the backend server for the SVG to Video pipeline.
 """
 
 import os
-import logging
-from typing import List
-from fastapi import FastAPI, HTTPException, Depends, Request
-from fastapi.responses import JSONResponse, FileResponse
+import sys
+import json
+import argparse
+from typing import List, Dict, Any, Optional
+from pathlib import Path
+from dotenv import load_dotenv
+
+from fastapi import FastAPI, Request, Response, File, Form, UploadFile, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
-import sys
-from pathlib import Path
+from fastapi.responses import JSONResponse, FileResponse, HTMLResponse
 
-# Add parent directory to sys.path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+# Add the parent directory to the Python path
+parent_dir = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+sys.path.append(parent_dir)
 
-# Import API routes
+# Load environment variables from .env file
+load_dotenv(os.path.join(parent_dir, ".env"))
+
+# Import port configurations
+config_path = os.path.join(parent_dir, "config", "ports.json")
+try:
+    with open(config_path, "r") as f:
+        ports_config = json.load(f)
+except Exception as e:
+    print(f"Warning: Could not load port configuration: {e}")
+    ports_config = {"services": {"svg_to_video_backend": 8001}}
+
+# Load the port for the SVG to Video backend
+SVG_VIDEO_PORT = ports_config.get("services", {}).get("svg_to_video_backend", 8001)
+
+# Import routes
 from api.routes import svg_video_routes
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger("backend")
-
-# Create FastAPI application
-app = FastAPI(
-    title="GenAI Agent 3D API",
-    description="API for generating SVG diagrams and converting them to 3D videos",
-    version="0.1.0",
-)
+# Create FastAPI app
+app = FastAPI(title="SVG to Video API", version="0.1.0")
 
 # Add CORS middleware
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, replace with specific origins
+    allow_origins=["*"],  # For development; restrict in production
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -48,41 +54,52 @@ app.add_middleware(
 # Include API routes
 app.include_router(svg_video_routes.router)
 
-# Error handler for uncaught exceptions
-@app.exception_handler(Exception)
-async def global_exception_handler(request: Request, exc: Exception):
-    logger.exception("Unhandled exception")
-    return JSONResponse(
-        status_code=500,
-        content={"detail": f"Internal Server Error: {str(exc)}"},
-    )
-
-# Create outputs directory if it doesn't exist
-outputs_dir = Path(__file__).parent.parent.parent / "outputs"
-outputs_dir.mkdir(exist_ok=True)
-
-# Mount outputs directory for serving generated files
-app.mount("/outputs", StaticFiles(directory=str(outputs_dir)), name="outputs")
-
 # Health check endpoint
 @app.get("/api/health")
 async def health_check():
-    return {"status": "ok"}
+    return {"status": "healthy", "service": "svg-to-video"}
 
-# Root endpoint that redirects to the built frontend
-@app.get("/")
-async def root():
-    frontend_path = Path(__file__).parent.parent / "frontend" / "build" / "index.html"
-    if frontend_path.exists():
-        return FileResponse(str(frontend_path))
+# Serve static files in production mode
+@app.on_event("startup")
+async def startup_event():
+    frontend_build_dir = os.path.join(parent_dir, "web", "frontend", "build")
+    
+    # Check if we're in production mode and the build directory exists
+    if "--prod" in sys.argv and os.path.exists(frontend_build_dir):
+        # Mount the frontend build directory
+        app.mount("/", StaticFiles(directory=frontend_build_dir, html=True), name="frontend")
+
+# Serve index.html for any unmatched routes in production mode
+@app.get("/{full_path:path}")
+async def serve_frontend(request: Request, full_path: str):
+    if "--prod" in sys.argv:
+        frontend_build_dir = os.path.join(parent_dir, "web", "frontend", "build")
+        index_path = os.path.join(frontend_build_dir, "index.html")
+        
+        if os.path.exists(index_path):
+            return FileResponse(index_path)
+    
+    # If not in production or index.html not found, return 404
+    return JSONResponse(status_code=404, content={"detail": "Not Found"})
+
+def main():
+    """Main entry point for the backend server."""
+    parser = argparse.ArgumentParser(description="SVG to Video Backend Server")
+    parser.add_argument("--port", type=int, default=SVG_VIDEO_PORT, help="Port to run the server on")
+    parser.add_argument("--prod", action="store_true", help="Run in production mode")
+    
+    args = parser.parse_args()
+    
+    # Start the server
+    import uvicorn
+    
+    print(f"Starting SVG to Video backend server on port {args.port}")
+    if args.prod:
+        print("Running in production mode")
     else:
-        return {"message": "GenAI Agent 3D API", "frontend": "Not found"}
-
-# Serve static frontend if available
-frontend_build_path = Path(__file__).parent.parent / "frontend" / "build"
-if frontend_build_path.exists():
-    app.mount("/", StaticFiles(directory=str(frontend_build_path), html=True), name="frontend")
+        print("Running in development mode")
+    
+    uvicorn.run("main:app", host="0.0.0.0", port=args.port, reload=not args.prod)
 
 if __name__ == "__main__":
-    import uvicorn
-    uvicorn.run(app, host="0.0.0.0", port=8000)
+    main()

@@ -3,30 +3,40 @@
 Write-Host "Starting simplified SVG to Video development environment" -ForegroundColor Green
 Write-Host ""
 
+# Get the script path
+$scriptPath = $PSScriptRoot
+
 # Check if virtual environment exists
-if (-not (Test-Path "venv")) {
+if (-not (Test-Path (Join-Path -Path $scriptPath -ChildPath "venv"))) {
     Write-Host "Virtual environment not found. Please run setup_svg_to_video.ps1 first." -ForegroundColor Red
     exit 1
 }
 
 # Create outputs directory if it doesn't exist
-if (-not (Test-Path "outputs")) {
-    New-Item -ItemType Directory -Path "outputs" | Out-Null
+$outputsDir = Join-Path -Path $scriptPath -ChildPath "outputs"
+if (-not (Test-Path $outputsDir)) {
+    New-Item -ItemType Directory -Path $outputsDir | Out-Null
+    Write-Host "Created outputs directory" -ForegroundColor Green
 }
 
 # Load port configuration if available
-$portsConfigPath = "config\ports.json"
+$portsConfigPath = Join-Path -Path $scriptPath -ChildPath "config\ports.json"
 $svgBackendPort = 8001  # Default port
 $svgFrontendPort = 3001  # Default SVG to Video frontend port
 
 if (Test-Path $portsConfigPath) {
     try {
         $portConfig = Get-Content $portsConfigPath | ConvertFrom-Json
-        $svgBackendPort = $portConfig.services.svg_to_video_backend
-        $svgFrontendPort = $portConfig.services.svg_to_video_frontend
+        if ($portConfig.services -and $portConfig.services.PSObject.Properties.Name -contains "svg_to_video_backend") {
+            $svgBackendPort = $portConfig.services.svg_to_video_backend
+        }
+        if ($portConfig.services -and $portConfig.services.PSObject.Properties.Name -contains "svg_to_video_frontend") {
+            $svgFrontendPort = $portConfig.services.svg_to_video_frontend
+        }
         Write-Host "Using configured ports: Backend=$svgBackendPort, Frontend=$svgFrontendPort" -ForegroundColor Green
     } catch {
-        Write-Host "Error loading port configuration: $_" -ForegroundColor Red
+        $errorMsg = $_.Exception.Message
+        Write-Host "Error loading port configuration: $errorMsg" -ForegroundColor Red
         Write-Host "Using default ports: Backend=$svgBackendPort, Frontend=$svgFrontendPort" -ForegroundColor Yellow
     }
 } else {
@@ -36,39 +46,53 @@ if (Test-Path $portsConfigPath) {
 # Kill any existing processes on our ports
 try {
     # First check if our kill script exists and run it
-    if (Test-Path "kill_servers.ps1") {
+    $killScriptPath = Join-Path -Path $scriptPath -ChildPath "kill_servers.ps1"
+    if (Test-Path $killScriptPath) {
         Write-Host "Running kill_servers.ps1 to cleanup any running servers..." -ForegroundColor Cyan
-        & .\kill_servers.ps1
+        & $killScriptPath
     } else {
         # Fallback: manually check for processes on our ports
-        $processId = Get-NetTCPConnection -LocalPort $svgBackendPort -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess
-        if ($processId) {
-            Write-Host "Killing existing process on port $svgBackendPort..." -ForegroundColor Yellow
-            Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
+        try {
+            $processId = Get-NetTCPConnection -LocalPort $svgBackendPort -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess
+            if ($processId) {
+                Write-Host "Killing existing process on port $svgBackendPort..." -ForegroundColor Yellow
+                Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
+            }
+        } catch {
+            $errorText = $_.Exception.Message
+            Write-Host "Error checking port $svgBackendPort - $errorText" -ForegroundColor Yellow
         }
         
-        $processId = Get-NetTCPConnection -LocalPort $svgFrontendPort -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess
-        if ($processId) {
-            Write-Host "Killing existing process on port $svgFrontendPort..." -ForegroundColor Yellow
-            Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
+        try {
+            $processId = Get-NetTCPConnection -LocalPort $svgFrontendPort -ErrorAction SilentlyContinue | Select-Object -ExpandProperty OwningProcess
+            if ($processId) {
+                Write-Host "Killing existing process on port $svgFrontendPort..." -ForegroundColor Yellow
+                Stop-Process -Id $processId -Force -ErrorAction SilentlyContinue
+            }
+        } catch {
+            $errorText = $_.Exception.Message
+            Write-Host "Error checking port $svgFrontendPort - $errorText" -ForegroundColor Yellow
         }
     }
     
     # Give processes time to shut down
     Start-Sleep -Seconds 2
 } catch {
-    Write-Host "Error killing existing processes: $_" -ForegroundColor Red
+    $errorMsg = $_.Exception.Message
+    Write-Host "Error killing existing processes: $errorMsg" -ForegroundColor Red
     Write-Host "Continuing anyway..." -ForegroundColor Yellow
 }
 
 # Check for master .env file
-if (Test-Path "genai_agent_project\.env") {
+$masterEnvPath = Join-Path -Path $scriptPath -ChildPath "genai_agent_project\.env"
+if (Test-Path $masterEnvPath) {
     Write-Host "Using master .env file from genai_agent_project directory." -ForegroundColor Green
 } else {
     Write-Host "Warning: Master .env file not found at genai_agent_project\.env" -ForegroundColor Yellow
     Write-Host "Checking for local .env file..." -ForegroundColor Yellow
     
-    if (Test-Path ".env") {
+    $localEnvPath = Join-Path -Path $scriptPath -ChildPath ".env"
+    if (Test-Path $localEnvPath) {
         Write-Host "Using local .env file." -ForegroundColor Green
     } else {
         Write-Host "No .env file found. API keys may not be available." -ForegroundColor Red
@@ -77,7 +101,7 @@ if (Test-Path "genai_agent_project\.env") {
 }
 
 # Modify the simple_server.py file to use the correct port
-$serverPath = "web\backend\simple_server.py"
+$serverPath = Join-Path -Path $scriptPath -ChildPath "web\backend\simple_server.py"
 if (Test-Path $serverPath) {
     $serverContent = Get-Content $serverPath -Raw
     $serverContent = $serverContent -replace "port = \d+", "port = $svgBackendPort"
@@ -87,14 +111,17 @@ if (Test-Path $serverPath) {
 
 # Start the simple backend server in a new window
 Write-Host "Starting SVG to Video backend server on port $svgBackendPort..." -ForegroundColor Cyan
-$backendJob = Start-Process powershell -ArgumentList "-NoExit", "-Command", "& { Set-Location '$PWD'; & .\venv\Scripts\Activate.ps1; Set-Location web\backend; python simple_server.py }" -PassThru
+$venvActivateScript = Join-Path -Path $scriptPath -ChildPath "venv\Scripts\Activate.ps1"
+$backendDir = Join-Path -Path $scriptPath -ChildPath "web\backend"
+$backendCmd = "& { Set-Location '$scriptPath'; & '$venvActivateScript'; Set-Location '$backendDir'; python simple_server.py }"
+$backendJob = Start-Process powershell -ArgumentList "-NoExit", "-Command", $backendCmd -PassThru
 
 # Wait for backend to start
 Write-Host "Waiting for backend to start..." -ForegroundColor Yellow
 Start-Sleep -Seconds 5
 
 # Update the frontend proxy configuration to use the correct port
-$packageJsonPath = "web\frontend\package.json"
+$packageJsonPath = Join-Path -Path $scriptPath -ChildPath "web\frontend\package.json"
 if (Test-Path $packageJsonPath) {
     Write-Host "Updating frontend proxy configuration..." -ForegroundColor Cyan
     $packageJson = Get-Content $packageJsonPath -Raw | ConvertFrom-Json
@@ -117,7 +144,8 @@ try {
 # Start the frontend development server
 if ($nodeAvailable) {
     Write-Host "Starting frontend development server on port $svgFrontendPort..." -ForegroundColor Cyan
-    Set-Location web\frontend
+    $frontendDir = Join-Path -Path $scriptPath -ChildPath "web\frontend"
+    Set-Location $frontendDir
     
     # Update the PORT environment variable for the React app
     $env:PORT = $svgFrontendPort
