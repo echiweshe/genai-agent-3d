@@ -2,92 +2,66 @@
 
 ## Overview
 
-The SVG to Video pipeline is a component of the GenAI Agent 3D project that converts text descriptions to SVG diagrams and then to animated 3D videos. This component uses AI-powered SVG generation through direct Claude API integration, providing faster and more reliable results compared to the previous LangChain implementation.
+The SVG to Video pipeline is a component of the GenAI Agent 3D project that converts text descriptions to SVG diagrams and then to animated 3D videos. The pipeline leverages AI-powered diagram generation, Blender for 3D conversion, and custom animation techniques to create engaging visualizations.
 
 ## Features
 
-- **Direct Claude API Integration**: Generates high-quality SVG diagrams directly through Anthropic's Claude API
-- **Multiple LLM Provider Support**: Compatible with Claude, OpenAI, and other LLM providers
-- **SVG to 3D Conversion**: Transforms SVG elements into 3D objects in Blender
-- **Animation System**: Applies professional animations based on diagram type
-- **Video Rendering**: Creates high-quality animated videos with customizable settings
-- **User-friendly Web Interface**: Simple interface for creating diagrams and videos
-- **API Endpoints**: Comprehensive REST API for integration with other systems
-- **CLI Support**: Command-line interface for batch processing and automation
-
-## Architecture
-
-The SVG to Video pipeline follows a modular architecture with the following components:
-
-1. **SVG Generation**: Uses direct API integration with Claude to create detailed SVG diagrams
-2. **SVG to 3D Conversion**: Leverages Blender's Python API to transform SVG elements into 3D objects
-3. **Animation System**: Applies animations based on the type of diagram (flowchart, network diagram, etc.)
-4. **Video Rendering**: Renders the animated 3D scene into a video file
-5. **Pipeline Orchestration**: Coordinates the entire process and handles error recovery
+- **AI-Powered SVG Generation**: Create SVG diagrams from text descriptions using Claude or OpenAI
+- **3D Conversion**: Transform SVG elements into 3D objects using Blender
+- **Smart Animation**: Apply context-aware animations based on diagram type
+- **High-Quality Rendering**: Produce professional video output with customizable settings
+- **Multi-Mode Operation**: Run in development, production, or simple mode
+- **Comprehensive API**: Full API for integration with other systems
+- **User-Friendly Interface**: Web interface for diagram generation and video creation
 
 ## Installation
 
 ### Prerequisites
 
 - Python 3.9+
-- Blender 3.0+ (with command-line access)
+- Blender 3.0+ (must be accessible from the command line)
 - Node.js 14+ (for the frontend)
-- Anthropic API key (for Claude)
 
-### Setup
+### Initial Setup
 
-1. Clone the repository:
-   ```bash
-   git clone https://github.com/your-org/genai-agent-3d.git
-   cd genai-agent-3d
-   ```
+Run the setup script to create a virtual environment and install all dependencies:
 
-2. Run the setup script:
-   ```bash
-   setup_svg_to_video.bat  # Windows
-   # OR
-   ./setup_svg_to_video.ps1  # PowerShell
-   ```
+```bash
+setup_svg_to_video.bat
+```
 
-3. Create a `.env` file in the project root with your API keys:
-   ```
-   ANTHROPIC_API_KEY=your_anthropic_api_key
-   OPENAI_API_KEY=your_openai_api_key
-   BLENDER_PATH=path_to_blender_executable  # Optional, if not in PATH
-   ```
+### API Keys
+
+The SVG generator requires API keys for the LLM providers. Edit the `.env` file in the root directory and add your API keys:
+
+```
+# API Keys for LLM Providers
+ANTHROPIC_API_KEY=your_anthropic_api_key
+OPENAI_API_KEY=your_openai_api_key
+BLENDER_PATH=path_to_blender_executable  # Optional, if Blender is not in PATH
+```
 
 ## Usage
 
-### Development Mode
+### Unified Run Script
 
-To start the development servers:
+```powershell
+# Start in development mode (separate backend and frontend)
+.\run_svg_to_video.ps1 -Dev
 
-```bash
-run_svg_to_video_dev.ps1
+# Start in simple mode (simplified server)
+.\run_svg_to_video.ps1 -Simple
+
+# Start in production mode (built frontend served by backend)
+.\run_svg_to_video.ps1 -Production
 ```
 
-This will:
-- Start the backend server on port 8001
-- Start the frontend development server on port 3001
+### Kill Script
 
-### Production Mode
+To stop all running servers:
 
-To run in production mode:
-
-```bash
-run_svg_to_video_prod.ps1
-```
-
-This will:
-- Build the frontend
-- Start the backend server serving the built frontend
-
-### Simple Mode
-
-For a simplified development setup:
-
-```bash
-run_simple_dev.ps1
+```powershell
+.\kill_servers.ps1
 ```
 
 ### Command Line Interface
@@ -96,93 +70,196 @@ The SVG to Video pipeline can also be used from the command line:
 
 ```bash
 # List available providers
-run_svg_cli.bat list-providers
+.\run_svg_cli.bat list-providers
 
-# Generate an SVG diagram
-run_svg_cli.bat svg "A flowchart showing user authentication process" output.svg
+# Generate an SVG from a text description
+.\run_svg_cli.bat svg "A flowchart showing user authentication process" output.svg
 
 # Convert an existing SVG to video
-run_svg_cli.bat convert input.svg output.mp4
+.\run_svg_cli.bat convert input.svg output.mp4
 
 # Generate a video directly from a concept
-run_svg_cli.bat generate "A network diagram showing cloud infrastructure" output.mp4
+.\run_svg_cli.bat generate "A network diagram showing cloud infrastructure" output.mp4
 ```
 
-## API Endpoints
+## Architecture
 
-The backend provides the following API endpoints:
+### Components
 
-| Endpoint | Method | Description |
-|----------|--------|-------------|
-| `/api/health` | GET | Health check endpoint |
-| `/api/svg-to-video/providers` | GET | Get a list of available LLM providers |
-| `/api/svg-to-video/generate-svg` | GET/POST | Generate an SVG diagram from a concept |
-| `/api/svg-to-video/convert-svg` | POST | Convert an uploaded SVG file to video |
-| `/api/svg-to-video/task/{task_id}` | GET | Get the status of a video generation task |
+1. **SVG Generator**: Creates SVG diagrams from text descriptions using LLM providers
+2. **SVG to 3D Converter**: Transforms SVG elements into 3D objects using Blender
+3. **Animation System**: Applies animations to 3D objects based on diagram type
+4. **Video Renderer**: Renders the animated 3D scene to a video file
+5. **Pipeline Orchestrator**: Coordinates the entire process and handles errors
 
-## Configuration
+### API Endpoints
 
-The SVG to Video pipeline uses the following configuration files:
+- `GET /api/svg-to-video/providers`: Get available LLM providers
+- `GET /api/svg-to-video/generate-svg`: Generate SVG from text description
+- `POST /api/svg-to-video/generate-svg`: Generate SVG (form or JSON body)
+- `POST /api/svg-to-video/convert-svg`: Convert SVG to video
+- `POST /api/svg-to-video/generate-video`: Generate video from text description
+- `GET /api/svg-to-video/task/{task_id}`: Get task status
+- `GET /api/svg-to-video/download/{file_id}`: Download generated files
 
-- `config/ports.json`: Defines port assignments for different services
-- `.env`: Contains API keys and environment-specific settings
+## Development Status
 
-## Port Configuration
+- **SVG Generation**: ✅ Working in development and simple mode
+- **3D Conversion**: 🔄 Basic implementation, needs testing
+- **Animation System**: 🔄 Basic implementation, needs testing
+- **Video Rendering**: 🔄 Basic implementation, needs testing
+- **Pipeline Orchestration**: 🔄 Basic implementation, needs enhancement
 
-| Service | Port | Description |
-|---------|------|-------------|
-| Main Backend | 8000 | The primary backend API server |
-| SVG to Video Backend | 8001 | Backend for the SVG to Video pipeline |
-| Web Backend | 8002 | Backend for the web interface |
-| Web Frontend | 3000 | Frontend for the main web interface |
-| SVG to Video Frontend | 3001 | Frontend for the SVG to Video pipeline |
+## Development Workflow
 
-This port configuration ensures that multiple services can run simultaneously without conflicts.
+1. Run `.\kill_servers.ps1` to ensure no lingering processes
+2. Start the server in the desired mode (Development/Simple/Production)
+3. Access the web interface at the provided URL
+4. Create SVG diagrams and convert them to videos
+5. Check logs for any issues or errors
+
+## Project Structure
+
+```
+genai-agent-3d/
+├── api/
+│   └── routes/
+│       └── svg_video_routes.py    # API endpoint definitions
+├── cli/
+│   └── svg_video_cli.py           # Command-line interface
+├── config/
+│   └── ports.json                 # Port configuration for services
+├── docs/
+│   └── architecture/
+│       └── implementation_guides/ # Implementation documentation
+├── genai_agent/
+│   ├── scripts/                   # Blender scripts
+│   │   ├── svg_to_3d_blender.py   # SVG to 3D conversion script
+│   │   ├── scenex_animation.py    # Animation script
+│   │   └── video_renderer.py      # Rendering script
+│   └── svg_to_video/              # Core pipeline components
+│       ├── llm_integrations/      # LLM providers integration
+│       │   ├── claude_direct.py   # Direct Claude API integration
+│       │   ├── llm_factory.py     # Factory for LLM providers
+│       │   └── __init__.py        # Package initialization
+│       ├── animation_system.py    # Animation system
+│       ├── pipeline.py            # Pipeline orchestration
+│       ├── svg_generator.py       # SVG generation component
+│       ├── svg_to_3d_converter.py # SVG to 3D conversion
+│       ├── utils.py               # Utility functions
+│       ├── video_renderer.py      # Video rendering
+│       └── __init__.py            # Package initialization
+├── outputs/                       # Generated files directory
+├── tests/                         # Test suite
+├── venv/                          # Python virtual environment
+├── web/
+│   ├── backend/                   # Backend server
+│   │   ├── main.py                # Main application
+│   │   ├── simple_server.py       # Simple server implementation
+│   │   └── requirements.txt       # Python dependencies
+│   └── frontend/                  # React frontend
+│       ├── public/                # Static files
+│       └── src/                   # Source code
+│           ├── components/        # React components
+│           │   └── svg_generator/ # SVG Generator component
+│           ├── App.jsx            # Main App component
+│           └── index.js           # Entry point
+├── .env                           # Environment variables
+├── kill_servers.ps1               # Script to stop all servers
+├── README-SVG-TO-VIDEO.md         # Component documentation
+├── run_svg_cli.bat                # CLI runner script
+├── run_svg_to_video.ps1           # Unified run script
+├── setup_svg_to_video.bat         # Setup script
+└── test_svg_pipeline.bat          # Test script
+```
+
+## Customization
+
+### Animation Types
+
+The pipeline supports different animation types:
+
+- `standard`: General purpose animation sequence
+- `flowchart`: Animation optimized for flowcharts with sequential highlighting
+- `network`: Animation optimized for network diagrams with pulse effects
+
+### Rendering Quality
+
+The video renderer supports different quality settings:
+
+- `low`: Fast rendering with minimal effects
+- `medium`: Balanced quality and performance
+- `high`: High quality rendering with advanced effects
 
 ## Troubleshooting
 
 ### Common Issues
 
-1. **Missing API Keys**: Ensure your `.env` file contains valid API keys
-   ```
-   ANTHROPIC_API_KEY=your_anthropic_api_key
-   ```
+1. **Port Conflicts**
+   
+   **Symptom**: Error message about address already in use
+   
+   **Solution**: Run `.\kill_servers.ps1` to free up ports, or check if another application is using the required ports
 
-2. **Blender Not Found**: Either add Blender to your PATH or specify the path in your `.env` file
-   ```
-   BLENDER_PATH=C:\Program Files\Blender Foundation\Blender 3.3\blender.exe
-   ```
+2. **API Keys Missing**
 
-3. **Port Conflicts**: If you encounter port conflicts, run the `kill_servers.ps1` script to free up ports
+   **Symptom**: Provider not available or authentication errors
+   
+   **Solution**: Ensure API keys are correctly set in the `.env` file
 
-4. **SVG Generation Fails**: Check the logs for API errors. The most common cause is an invalid or expired API key
+3. **Blender Not Found**
+
+   **Symptom**: SVG to 3D conversion fails with "Blender not found" error
+   
+   **Solution**: Install Blender and set the path in the `.env` file, or add Blender to your system PATH
+
+4. **Frontend Build Issues**
+
+   **Symptom**: Production mode fails to start or shows errors
+   
+   **Solution**: Check Node.js installation, reinstall dependencies with `npm install` in the frontend directory
 
 ### Logs
 
-Log files are located in the `logs` directory. Check these logs for detailed error information.
+Check the following locations for logs:
 
-## Development Notes
+- Terminal window running the backend server
+- Browser console for frontend errors
+- Application logs in the `logs` directory
 
-### Architecture Overview
+## Next Steps
 
-The direct Claude integration provides several advantages over the previous LangChain approach:
+For the next phase of development, focus on:
 
-1. **Simplified Architecture**: Eliminates unnecessary abstraction layers
-2. **Lower Latency**: Direct API calls reduce response time
-3. **Better Error Handling**: More specific error messages from the API
-4. **Reduced Dependencies**: Fewer external libraries required
+1. Testing and enhancing the SVG to 3D conversion with Blender
+2. Implementing more sophisticated animations based on diagram type
+3. Improving the video rendering quality and performance
+4. Enhancing the frontend interface with better user feedback
 
-### Future Enhancements
+See the `SVG_TO_VIDEO_STATUS.md` document for detailed development plans and the `DEVELOPMENT_ROADMAP.md` for a timeline of future enhancements.
 
-- Advanced animation presets for specific diagram types
-- Support for additional 3D engines beyond Blender
-- Integration with more LLM providers
-- Real-time collaborative editing of diagrams
+## Testing
 
-## Contributors
+To test the Blender integration:
 
-This component was developed by the GenAI Agent 3D team.
+```powershell
+.\test_blender_integration.ps1
+```
+
+To test OpenAI support:
+
+```powershell
+.\test_openai_integration.ps1
+```
+
+These scripts will verify all components of the pipeline and identify any issues that need to be addressed.
 
 ## License
 
-[Your License Information]
+[Your license information]
+
+## Acknowledgments
+
+- Claude API by Anthropic for advanced SVG generation
+- Blender for 3D modeling and rendering
+- All the libraries and tools that make this project possible
