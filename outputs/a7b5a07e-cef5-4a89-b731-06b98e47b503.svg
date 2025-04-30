@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500">
+  <!-- Background -->
+  <rect width="800" height="500" fill="#f8f9fa" rx="10" ry="10"/>
+  
+  <!-- Title -->
+  <text x="400" y="40" font-family="Arial, sans-serif" font-size="24" font-weight="bold" text-anchor="middle" fill="#333">TCP 3-Way Handshake with Options Negotiation</text>
+  
+  <!-- Client and Server boxes -->
+  <rect x="100" y="80" width="150" height="60" rx="5" ry="5" fill="#4285f4" stroke="#2a56c6" stroke-width="2"/>
+  <text x="175" y="118" font-family="Arial, sans-serif" font-size="18" font-weight="bold" text-anchor="middle" fill="white">Client</text>
+  
+  <rect x="550" y="80" width="150" height="60" rx="5" ry="5" fill="#34a853" stroke="#1e8e3e" stroke-width="2"/>
+  <text x="625" y="118" font-family="Arial, sans-serif" font-size="18" font-weight="bold" text-anchor="middle" fill="white">Server</text>
+  
+  <!-- Vertical timeline lines -->
+  <line x1="175" y1="140" x2="175" y2="450" stroke="#4285f4" stroke-width="3" stroke-dasharray="5,5"/>
+  <line x1="625" y1="140" x2="625" y2="450" stroke="#34a853" stroke-width="3" stroke-dasharray="5,5"/>
+  
+  <!-- Handshake arrows -->
+  <!-- SYN -->
+  <line x1="175" y1="180" x2="625" y2="230" stroke="#db4437" stroke-width="2"/>
+  <polygon points="615,230 625,230 620,220" fill="#db4437"/>
+  
+  <!-- SYN-ACK -->
+  <line x1="625" y1="280" x2="175" y2="330" stroke="#f4b400" stroke-width="2"/>
+  <polygon points="185,330 175,330 180,320" fill="#f4b400"/>
+  
+  <!-- ACK -->
+  <line x1="175" y1="380" x2="625" y2="430" stroke="#0f9d58" stroke-width="2"/>
+  <polygon points="615,430 625,430 620,420" fill="#0f9d58"/>
+  
+  <!-- Handshake labels -->
+  <!-- SYN -->
+  <rect x="300" y="170" width="200" height="50" rx="10" ry="10" fill="#ffebee" stroke="#db4437" stroke-width="1"/>
+  <text x="400" y="195" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#333">SYN</text>
+  <text x="400" y="210" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#333">SEQ=x, Options: MSS, SACK, WS</text>
+  
+  <!-- SYN-ACK -->
+  <rect x="300" y="270" width="200" height="50" rx="10" ry="10" fill="#fff8e1" stroke="#f4b400" stroke-width="1"/>
+  <text x="400" y="295" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#333">SYN-ACK</text>
+  <text x="400" y="310" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#333">SEQ=y, ACK=x+1, Options Accepted</text>
+  
+  <!-- ACK -->
+  <rect x="300" y="370" width="200" height="50" rx="10" ry="10" fill="#e8f5e9" stroke="#0f9d58" stroke-width="1"/>
+  <text x="400" y="395" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#333">ACK</text>
+  <text x="400" y="410" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#333">SEQ=x+1, ACK=y+1, Connection Open</text>
+  
+  <!-- Options Legend -->
+  <rect x="50" y="430" width="700" height="60" rx="5" ry="5" fill="#e3f2fd" stroke="#1976d2" stroke-width="1"/>
+  <text x="400" y="450" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#333">TCP Options Negotiated:</text>
+  <text x="400" y="475" font-family="Arial, sans-serif" font-size="12" text-anchor="middle" fill="#333">MSS (Maximum Segment Size), SACK (Selective ACK), WS (Window Scaling), Timestamps</text>
+</svg>

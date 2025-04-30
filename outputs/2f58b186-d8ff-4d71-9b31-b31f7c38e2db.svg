@@ -1,0 +1,52 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 500" width="800" height="500">
+  <!-- Background -->
+  <rect width="800" height="500" fill="#f8f9fa" rx="10" ry="10"/>
+  
+  <!-- Title -->
+  <text x="400" y="40" font-family="Arial, sans-serif" font-size="24" font-weight="bold" text-anchor="middle" fill="#333">TCP 3-Way Handshake with Options</text>
+  
+  <!-- Client and Server boxes -->
+  <rect x="100" y="80" width="150" height="60" rx="5" ry="5" fill="#4285f4" stroke="#2a56c6" stroke-width="2"/>
+  <text x="175" y="115" font-family="Arial, sans-serif" font-size="18" font-weight="bold" text-anchor="middle" fill="white">Client</text>
+  
+  <rect x="550" y="80" width="150" height="60" rx="5" ry="5" fill="#34a853" stroke="#1e8e3e" stroke-width="2"/>
+  <text x="625" y="115" font-family="Arial, sans-serif" font-size="18" font-weight="bold" text-anchor="middle" fill="white">Server</text>
+  
+  <!-- Vertical timeline lines -->
+  <line x1="175" y1="140" x2="175" y2="450" stroke="#4285f4" stroke-width="3" stroke-dasharray="5,5"/>
+  <line x1="625" y1="140" x2="625" y2="450" stroke="#34a853" stroke-width="3" stroke-dasharray="5,5"/>
+  
+  <!-- Step 1: SYN -->
+  <line x1="175" y1="180" x2="625" y2="220" stroke="#db4437" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <rect x="300" y="170" width="200" height="30" rx="15" ry="15" fill="#fce8e6" stroke="#db4437" stroke-width="1.5"/>
+  <text x="400" y="190" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#db4437">SYN, SEQ=x, Options</text>
+  
+  <!-- Step 2: SYN-ACK -->
+  <line x1="625" y1="260" x2="175" y2="300" stroke="#f4b400" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <rect x="300" y="250" width="200" height="30" rx="15" ry="15" fill="#fef7e0" stroke="#f4b400" stroke-width="1.5"/>
+  <text x="400" y="270" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#f4b400">SYN-ACK, SEQ=y, ACK=x+1, Options</text>
+  
+  <!-- Step 3: ACK -->
+  <line x1="175" y1="340" x2="625" y2="380" stroke="#0f9d58" stroke-width="2" marker-end="url(#arrowhead)"/>
+  <rect x="300" y="330" width="200" height="30" rx="15" ry="15" fill="#e6f4ea" stroke="#0f9d58" stroke-width="1.5"/>
+  <text x="400" y="350" font-family="Arial, sans-serif" font-size="14" text-anchor="middle" fill="#0f9d58">ACK, ACK=y+1</text>
+  
+  <!-- Connection Established -->
+  <rect x="250" y="410" width="300" height="40" rx="5" ry="5" fill="#e8f0fe" stroke="#4285f4" stroke-width="1.5"/>
+  <text x="400" y="435" font-family="Arial, sans-serif" font-size="16" font-weight="bold" text-anchor="middle" fill="#4285f4">Connection Established with Options</text>
+  
+  <!-- Options Box -->
+  <rect x="50" y="170" width="200" height="120" rx="5" ry="5" fill="white" stroke="#dadce0" stroke-width="1.5"/>
+  <text x="150" y="190" font-family="Arial, sans-serif" font-size="14" font-weight="bold" text-anchor="middle" fill="#5f6368">TCP Options</text>
+  <text x="60" y="215" font-family="Arial, sans-serif" font-size="12" fill="#5f6368">• MSS (Maximum Segment Size)</text>
+  <text x="60" y="235" font-family="Arial, sans-serif" font-size="12" fill="#5f6368">• Window Scale</text>
+  <text x="60" y="255" font-family="Arial, sans-serif" font-size="12" fill="#5f6368">• SACK Permitted</text>
+  <text x="60" y="275" font-family="Arial, sans-serif" font-size="12" fill="#5f6368">• Timestamps</text>
+  
+  <!-- Arrow marker definition -->
+  <defs>
+    <marker id="arrowhead" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
+      <polygon points="0 0, 10 3.5, 0 7" fill="#333"/>
+    </marker>
+  </defs>
+</svg>

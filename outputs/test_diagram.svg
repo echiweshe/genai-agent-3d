@@ -1,0 +1,36 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 600 300" width="600" height="300">
+  <!-- Background -->
+  <rect width="600" height="300" fill="#f8f9fa" rx="10" ry="10"/>
+  
+  <!-- Step 1 -->
+  <rect x="50" y="120" width="120" height="60" rx="8" ry="8" fill="#4285f4" stroke="#2a56c6" stroke-width="2"/>
+  <text x="110" y="155" font-family="Arial, sans-serif" font-size="16" fill="white" text-anchor="middle" font-weight="bold">Step 1</text>
+  <text x="110" y="175" font-family="Arial, sans-serif" font-size="12" fill="white" text-anchor="middle">Input Data</text>
+  
+  <!-- Arrow 1 -->
+  <path d="M170 150 L240 150" stroke="#555" stroke-width="2" fill="none"/>
+  <polygon points="240,150 230,145 230,155" fill="#555"/>
+  
+  <!-- Step 2 -->
+  <rect x="240" y="120" width="120" height="60" rx="8" ry="8" fill="#fbbc05" stroke="#e37400" stroke-width="2"/>
+  <text x="300" y="155" font-family="Arial, sans-serif" font-size="16" fill="white" text-anchor="middle" font-weight="bold">Step 2</text>
+  <text x="300" y="175" font-family="Arial, sans-serif" font-size="12" fill="white" text-anchor="middle">Process</text>
+  
+  <!-- Arrow 2 -->
+  <path d="M360 150 L430 150" stroke="#555" stroke-width="2" fill="none"/>
+  <polygon points="430,150 420,145 420,155" fill="#555"/>
+  
+  <!-- Step 3 -->
+  <rect x="430" y="120" width="120" height="60" rx="8" ry="8" fill="#34a853" stroke="#0d652d" stroke-width="2"/>
+  <text x="490" y="155" font-family="Arial, sans-serif" font-size="16" fill="white" text-anchor="middle" font-weight="bold">Step 3</text>
+  <text x="490" y="175" font-family="Arial, sans-serif" font-size="12" fill="white" text-anchor="middle">Output Result</text>
+  
+  <!-- Title -->
+  <text x="300" y="60" font-family="Arial, sans-serif" font-size="24" fill="#333" text-anchor="middle" font-weight="bold">Simple Three-Step Flowchart</text>
+  
+  <!-- Decorative elements -->
+  <circle cx="50" cy="50" r="8" fill="#ea4335" opacity="0.6"/>
+  <circle cx="550" cy="50" r="8" fill="#4285f4" opacity="0.6"/>
+  <circle cx="50" cy="250" r="8" fill="#fbbc05" opacity="0.6"/>
+  <circle cx="550" cy="250" r="8" fill="#34a853" opacity="0.6"/>
+</svg>
