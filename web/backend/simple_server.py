@@ -108,7 +108,10 @@ async def list_providers():
     
     # Add direct Anthropic if available
     if has_anthropic and anthropic_client:
+        # Add both 'claude' and 'claude-direct' for compatibility
         if "claude" not in providers:
+            providers.append("claude")
+        if "claude-direct" not in providers:
             providers.append("claude-direct")
     
     return providers
@@ -135,7 +138,7 @@ async def generate_svg_internal(concept: str, provider: str = None):
         raise HTTPException(status_code=400, detail="Concept is required")
     
     # Check if using direct Claude
-    if provider == "claude-direct" and has_anthropic and anthropic_client:
+    if (provider == "claude-direct" or provider == "claude") and has_anthropic and anthropic_client:
         try:
             logger.info(f"Generating SVG with direct Claude API: {concept[:50]}...")
             
@@ -246,6 +249,11 @@ if __name__ == "__main__":
     port = 8001
     print(f"Starting server on port {port}")
     uvicorn.run(app, host="0.0.0.0", port=port)
+
+
+
+
+
 
 
 

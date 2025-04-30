@@ -41,9 +41,19 @@ const SVGGenerator = () => {
       const response = await fetch('/api/svg-to-video/providers');
       if (response.ok) {
         const data = await response.json();
-        setProviders(data);
-        if (data.length > 0) {
-          setSelectedProvider(data[0]);
+        // Handle different response formats
+        const providerList = Array.isArray(data) 
+          ? data 
+          : (data.providers || []);
+          
+        // Convert complex provider objects to strings if needed
+        const normalizedProviders = providerList.map(provider => 
+          typeof provider === 'string' ? provider : provider.id || provider.name || JSON.stringify(provider)
+        );
+        
+        setProviders(normalizedProviders);
+        if (normalizedProviders.length > 0) {
+          setSelectedProvider(normalizedProviders[0]);
         }
       } else {
         console.error('Failed to fetch providers');
@@ -211,8 +221,10 @@ const SVGGenerator = () => {
             onChange={(e) => setSelectedProvider(e.target.value)}
             disabled={isGenerating || isConverting || providers.length === 0}
           >
-            {providers.map((provider) => (
-              <option key={provider} value={provider}>{provider}</option>
+            {providers.map((provider, index) => (
+              <option key={`provider-${index}`} value={provider}>
+                {typeof provider === 'string' ? provider : JSON.stringify(provider)}
+              </option>
             ))}
           </select>
         </div>
