@@ -28,29 +28,45 @@ class LLMFactory:
         # Check for Anthropic/Claude
         if os.environ.get("ANTHROPIC_API_KEY"):
             try:
+                claude_generator = ClaudeDirectSVGGenerator()
+                available_models = claude_generator.get_available_models()
+                
+                # Add both 'claude' and 'claude-direct' providers pointing to the same implementation
                 self.providers["claude"] = {
                     "name": "Claude",
                     "description": "Anthropic's Claude API for high-quality SVG generation",
                     "available": True,
-                    "models": ClaudeDirectSVGGenerator().get_available_models()
+                    "models": available_models
                 }
-                logger.info("Claude provider initialized successfully")
+                
+                self.providers["claude-direct"] = {
+                    "name": "Claude Direct",
+                    "description": "Direct integration with Anthropic's Claude API",
+                    "available": True,
+                    "models": available_models
+                }
+                
+                logger.info("Claude providers initialized successfully")
             except Exception as e:
-                logger.error(f"Failed to initialize Claude provider: {e}")
-                self.providers["claude"] = {
+                logger.error(f"Failed to initialize Claude providers: {e}")
+                error_info = {
                     "name": "Claude",
                     "description": "Anthropic's Claude API for high-quality SVG generation",
                     "available": False,
                     "error": str(e)
                 }
+                self.providers["claude"] = error_info
+                self.providers["claude-direct"] = error_info
         else:
-            logger.warning("ANTHROPIC_API_KEY not found, Claude provider unavailable")
-            self.providers["claude"] = {
+            logger.warning("ANTHROPIC_API_KEY not found, Claude providers unavailable")
+            unavailable_info = {
                 "name": "Claude",
                 "description": "Anthropic's Claude API for high-quality SVG generation",
                 "available": False,
                 "error": "API key not found"
             }
+            self.providers["claude"] = unavailable_info
+            self.providers["claude-direct"] = unavailable_info
         
         # TODO: Add more providers as needed (OpenAI, Ollama, etc.)
     
@@ -61,10 +77,17 @@ class LLMFactory:
         Returns:
             A list of dictionaries containing provider information
         """
-        return [
+        # Create a list of provider information with ID included
+        provider_list = [
             {"id": provider_id, **info}
             for provider_id, info in self.providers.items()
+            if info.get("available", False)  # Only include available providers
         ]
+        
+        # Sort providers by name for consistent order
+        provider_list.sort(key=lambda p: p.get("name", ""))
+        
+        return provider_list
     
     def create_generator(self, provider: str, model: Optional[str] = None) -> Any:
         """
@@ -88,7 +111,7 @@ class LLMFactory:
             error = provider_info.get("error", "Provider not available")
             raise ValueError(f"Provider {provider} is not available: {error}")
         
-        if provider == "claude":
+        if provider == "claude" or provider == "claude-direct":
             generator = ClaudeDirectSVGGenerator()
             if model:
                 generator.set_model(model)

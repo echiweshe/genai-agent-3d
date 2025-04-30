@@ -76,19 +76,25 @@ async def get_providers() -> List[Dict[str, Any]]:
     """Get a list of available LLM providers."""
     return llm_factory.get_providers()
 
+@router.get("/generate-svg")
+async def generate_svg_get(
+    concept: str = Query(..., description="Concept description for diagram generation"),
+    provider: str = Query("claude", description="LLM provider to use"),
+    model: Optional[str] = Query(None, description="Specific model to use"),
+    style: Optional[str] = Query(None, description="Optional style guidelines")
+) -> Dict[str, str]:
+    """Generate an SVG diagram from a concept (GET method)."""
+    return await generate_svg_internal(concept, provider, model, style)
+
 @router.post("/generate-svg")
-async def generate_svg(
+async def generate_svg_post(
     request: Union[GenerateSVGRequest, None] = None,
     concept: str = Form(None),
     provider: str = Form("claude"),
     model: Optional[str] = Form(None),
     style: Optional[str] = Form(None)
 ) -> Dict[str, str]:
-    """
-    Generate an SVG diagram from a concept.
-    
-    Accepts either a JSON request body or form data.
-    """
+    """Generate an SVG diagram from a concept (POST method)."""
     # Handle both JSON and form data
     if request is not None:
         concept = request.concept
@@ -97,6 +103,15 @@ async def generate_svg(
         style = request.style
     elif concept is None:
         raise HTTPException(status_code=400, detail="Concept is required")
+    
+    return await generate_svg_internal(concept, provider, model, style)
+
+async def generate_svg_internal(
+    concept: str,
+    provider: str = "claude",
+    model: Optional[str] = None,
+    style: Optional[str] = None
+) -> Dict[str, str]:
     
     try:
         svg_content = llm_factory.generate_svg(provider, concept, model, style)

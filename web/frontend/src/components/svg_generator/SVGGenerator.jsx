@@ -41,19 +41,36 @@ const SVGGenerator = () => {
       const response = await fetch('/api/svg-to-video/providers');
       if (response.ok) {
         const data = await response.json();
-        // Handle different response formats
-        const providerList = Array.isArray(data) 
-          ? data 
-          : (data.providers || []);
-          
-        // Convert complex provider objects to strings if needed
-        const normalizedProviders = providerList.map(provider => 
-          typeof provider === 'string' ? provider : provider.id || provider.name || JSON.stringify(provider)
-        );
         
-        setProviders(normalizedProviders);
-        if (normalizedProviders.length > 0) {
-          setSelectedProvider(normalizedProviders[0]);
+        // Process provider data
+        let processedProviders = [];
+        
+        if (Array.isArray(data)) {
+          processedProviders = data.map(provider => {
+            // If provider is a string, use it as is
+            if (typeof provider === 'string') {
+              return { id: provider, name: provider };
+            }
+            
+            // If provider is an object with id, use it
+            if (provider && provider.id) {
+              return {
+                id: provider.id,
+                name: provider.name || provider.id
+              };
+            }
+            
+            // Fallback
+            return { id: 'unknown', name: 'Unknown Provider' };
+          });
+        }
+        
+        setProviders(processedProviders);
+        
+        // Set the default provider - prefer claude or claude-direct if available
+        if (processedProviders.length > 0) {
+          const claudeProvider = processedProviders.find(p => p.id === 'claude' || p.id === 'claude-direct');
+          setSelectedProvider(claudeProvider ? claudeProvider.id : processedProviders[0].id);
         }
       } else {
         console.error('Failed to fetch providers');
@@ -221,9 +238,9 @@ const SVGGenerator = () => {
             onChange={(e) => setSelectedProvider(e.target.value)}
             disabled={isGenerating || isConverting || providers.length === 0}
           >
-            {providers.map((provider, index) => (
-              <option key={`provider-${index}`} value={provider}>
-                {typeof provider === 'string' ? provider : JSON.stringify(provider)}
+            {providers.map((provider) => (
+              <option key={provider.id} value={provider.id}>
+                {provider.name}
               </option>
             ))}
           </select>
