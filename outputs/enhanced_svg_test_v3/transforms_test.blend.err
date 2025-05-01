@@ -1,0 +1,22 @@
+TBBmalloc: skip allocation functions replacement in ucrtbase.dll: unknown prologue for function _msize
+Traceback (most recent call last):
+  File "C:\ZB_Share\Labs\src\CluadeMCP\genai-agent-3d\genai_agent\scripts\enhanced_svg_to_3d_v3.py", line 88, in parse
+    self._process_element(root)
+  File "C:\ZB_Share\Labs\src\CluadeMCP\genai-agent-3d\genai_agent\scripts\enhanced_svg_to_3d_v3.py", line 127, in _process_element
+    self._process_element(child, transform_matrix)
+  File "C:\ZB_Share\Labs\src\CluadeMCP\genai-agent-3d\genai_agent\scripts\enhanced_svg_to_3d_v3.py", line 118, in _process_element
+    transform_matrix = self._parse_transform(transform, parent_transform)
+                       ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\ZB_Share\Labs\src\CluadeMCP\genai-agent-3d\genai_agent\scripts\enhanced_svg_to_3d_v3.py", line 292, in _parse_transform
+    matrix = translate_matrix @ matrix
+             ~~~~~~~~~~~~~~~~~^~~~~~~~
+ValueError: matrix1 * matrix2: matrix1 number of columns and the matrix2 number of rows must be the same
+Traceback (most recent call last):
+  File "C:\ZB_Share\Labs\src\CluadeMCP\genai-agent-3d\genai_agent\scripts\enhanced_svg_to_3d_v3.py", line 2092, in convert_svg_to_3d
+    bpy.ops.view3d.view_all(override)
+  File "C:\Program Files\Blender Foundation\Blender 4.2\4.2\scripts\modules\bpy\ops.py", line 106, in __call__
+    C_exec, C_undo = _BPyOpsSubModOp._parse_args(args)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Blender Foundation\Blender 4.2\4.2\scripts\modules\bpy\ops.py", line 60, in _parse_args
+    raise ValueError("1-2 args execution context is supported")
+ValueError: 1-2 args execution context is supported

@@ -1,0 +1,15 @@
+TBBmalloc: skip allocation functions replacement in ucrtbase.dll: unknown prologue for function _msize
+Traceback (most recent call last):
+  File "C:\ZB_Share\Labs\src\CluadeMCP\genai-agent-3d\genai_agent\scripts\enhanced_svg_to_3d_v3.py", line 1247, in create_3d_line
+    direction = mathutils.Vector((dx, dy, 0)).normalized()
+                ^^^^^^^^^
+NameError: name 'mathutils' is not defined
+Traceback (most recent call last):
+  File "C:\ZB_Share\Labs\src\CluadeMCP\genai-agent-3d\genai_agent\scripts\enhanced_svg_to_3d_v3.py", line 2092, in convert_svg_to_3d
+    bpy.ops.view3d.view_all(override)
+  File "C:\Program Files\Blender Foundation\Blender 4.2\4.2\scripts\modules\bpy\ops.py", line 106, in __call__
+    C_exec, C_undo = _BPyOpsSubModOp._parse_args(args)
+                     ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "C:\Program Files\Blender Foundation\Blender 4.2\4.2\scripts\modules\bpy\ops.py", line 60, in _parse_args
+    raise ValueError("1-2 args execution context is supported")
+ValueError: 1-2 args execution context is supported

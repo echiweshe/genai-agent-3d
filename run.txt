@@ -25,10 +25,16 @@ python .\manage_services.py start
 
 python start_all_services.py
 
+# ----
+.\kill_servers.ps1
+
 cd .\genai_agent_project
 .\venv\Scripts\activate
 python manage_services.py restart all
 
+.\run_simple_dev.ps1
+
+# ----
 
 # Start all services
 python manage_services.py start all
@@ -36,6 +42,26 @@ python manage_services.py start all
 # Or start just the LLM worker
 python manage_services.py start llm_worker
 
+
+### SVG_to_Video Development Mode
+
+.\kill_servers.ps1
+.\run_simple_dev.ps1
+
+.\kill_servers.ps1
+.\run_svg_to_video_dev.ps1
+
+.\kill_servers.ps1
+.\run_svg_to_video_prod.ps1
+
+
+.\blender_integration.ps1
+
+.\openai_integration.ps1
+
+.\test_enhanced_v2.ps1
+
+blender --background --python enhanced_svg_to_3d_v3.py -- input.svg output.blend [extrude_depth] [scale_factor] [debug]
 
 # -----------------
 

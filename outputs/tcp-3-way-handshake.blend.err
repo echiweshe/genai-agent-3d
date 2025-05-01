@@ -1,0 +1,5 @@
+TBBmalloc: skip allocation functions replacement in ucrtbase.dll: unknown prologue for function _msize
+  File "C:\ZB_Share\Labs\src\CluadeMCP\genai-agent-3d\genai_agent\scripts\enhanced_svg_to_3d_v3.py", line 1790
+    def setup_camera_and_lighting(self):
+                                        ^
+IndentationError: unindent does not match any outer indentation level
