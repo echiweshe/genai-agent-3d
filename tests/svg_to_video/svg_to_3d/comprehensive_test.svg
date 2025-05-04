@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="600" viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
+    <!-- Background -->
+    <rect x="0" y="0" width="800" height="600" fill="#ffffff" />
+    
+    <!-- Basic Shapes Section -->
+    <g id="basic-shapes">
+        <!-- Rectangle with color -->
+        <rect x="50" y="50" width="100" height="60" fill="#ff0000" />
+        
+        <!-- Rectangle with rounded corners -->
+        <rect x="200" y="50" width="100" height="60" rx="15" ry="15" fill="#00ff00" />
+        
+        <!-- Circle -->
+        <circle cx="400" cy="80" r="40" fill="#0000ff" />
+        
+        <!-- Ellipse -->
+        <ellipse cx="550" cy="80" rx="50" ry="30" fill="#ff00ff" />
+    </g>
+    
+    <!-- Lines and Paths Section -->
+    <g id="lines-paths">
+        <!-- Simple line -->
+        <line x1="50" y1="200" x2="150" y2="250" stroke="#ff0000" stroke-width="5" />
+        
+        <!-- Polyline -->
+        <polyline points="200,200 250,220 300,200 350,220" stroke="#00ff00" stroke-width="3" fill="none" />
+        
+        <!-- Polygon (star) -->
+        <polygon points="450,200 470,250 520,250 480,280 500,330 450,300 400,330 420,280 380,250 430,250" 
+                 fill="#ffff00" stroke="#000000" stroke-width="2" />
+    </g>
+    
+    <!-- Text Section -->
+    <g id="text-elements">
+        <text x="50" y="400" font-size="36" fill="#000000">SVG to 3D</text>
+        <text x="300" y="400" font-size="24" fill="#0000ff" font-family="Arial">Test Complete</text>
+    </g>
+    
+    <!-- Complex Path -->
+    <path d="M50,500 C100,450 150,450 200,500 S300,550 350,500 L400,500 Z" 
+          fill="#ff8800" stroke="#000000" stroke-width="2" />
+    
+    <!-- Group with Transform -->
+    <g transform="translate(600, 400) rotate(45)">
+        <rect x="-30" y="-30" width="60" height="60" fill="#008800" />
+        <circle cx="0" cy="0" r="20" fill="#ffffff" />
+    </g>
+</svg>

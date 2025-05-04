@@ -1,0 +1,39 @@
+{
+  "timestamp": "2025-05-04T12:24:52.535361",
+  "blender_path": "C:\\Program Files\\Blender Foundation\\Blender 4.2\\blender.EXE",
+  "tests": {
+    "Basic Test": {
+      "status": "passed",
+      "script": "test_converter.py",
+      "duration": 0.708155,
+      "log_file": "test_converter.py.log",
+      "description": "Basic functionality test with simple shapes"
+    },
+    "Debug Test": {
+      "status": "passed",
+      "script": "debug_converter.py",
+      "duration": 0.451713,
+      "log_file": "debug_converter.py.log",
+      "description": "Detailed debug test with edge cases"
+    },
+    "Batch Test": {
+      "status": "passed",
+      "script": "batch_test.py",
+      "duration": 0.502433,
+      "log_file": "batch_test.py.log",
+      "description": "Batch test with multiple SVG files"
+    },
+    "Visual Test": {
+      "status": "passed",
+      "script": "visual_test.py",
+      "duration": 7.849889,
+      "log_file": "visual_test.py.log",
+      "description": "Visual test with complex SVG elements"
+    }
+  },
+  "summary": {
+    "total": 4,
+    "passed": 4,
+    "failed": 0
+  }
+}

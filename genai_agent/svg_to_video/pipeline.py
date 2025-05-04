@@ -15,7 +15,10 @@ import shutil
 from typing import Dict, Any, Optional, List, Union
 
 from .svg_generator import SVGGenerator
-from .svg_to_3d_converter import SVGTo3DConverter
+# Import our new modularized converter
+from .svg_to_3d.svg_parser import SVGParser
+from .svg_to_3d.svg_converter import SVGTo3DConverter as ModularSVGTo3DConverter
+from .svg_to_3d_converter import SVGTo3DConverter as OldSVGTo3DConverter
 from .animation_system import AnimationSystem
 from .video_renderer import VideoRenderer
 
@@ -37,7 +40,10 @@ class SVGToVideoPipeline:
         
         # Initialize components
         self.svg_generator = SVGGenerator()
-        self.svg_to_3d_converter = SVGTo3DConverter(self.config)
+        # Use the new modular converter by default
+        self.svg_to_3d_converter = ModularSVGTo3DConverter()
+        # Keep old converter for fallback
+        self.old_svg_to_3d_converter = OldSVGTo3DConverter(self.config)
         self.animation_system = AnimationSystem(self.config)
         self.video_renderer = VideoRenderer(self.config)
     
@@ -75,7 +81,31 @@ class SVGToVideoPipeline:
             
             # Step 2: Convert SVG to 3D model
             model_path = os.path.join(job_dir, "model.blend")
-            model_path = await self.svg_to_3d_converter.convert(svg_path, model_path)
+            try:
+                # First try new modular converter
+                parser = SVGParser(svg_path)
+                elements, width, height = parser.parse()
+                
+                if not elements:
+                    logger.warning("No elements found in SVG, falling back to old converter")
+                    model_path = await self.old_svg_to_3d_converter.convert(svg_path, model_path)
+                else:
+                    svg_data = {
+                        'elements': elements,
+                        'width': width,
+                        'height': height
+                    }
+                    result = self.svg_to_3d_converter.convert(svg_data)
+                    if result:
+                        # Save the Blender file
+                        import bpy
+                        bpy.ops.wm.save_as_mainfile(filepath=model_path)
+                    else:
+                        logger.warning("Modular converter failed, falling back to old converter")
+                        model_path = await self.old_svg_to_3d_converter.convert(svg_path, model_path)
+            except Exception as e:
+                logger.warning(f"Error with modular converter: {e}, falling back to old converter")
+                model_path = await self.old_svg_to_3d_converter.convert(svg_path, model_path)
             
             logger.info(f"Converted 3D model saved to {model_path}")
             
@@ -185,7 +215,31 @@ class SVGToVideoPipeline:
             
             # Step 1: Convert SVG to 3D model
             model_path = os.path.join(job_dir, "model.blend")
-            model_path = await self.svg_to_3d_converter.convert(svg_path, model_path)
+            try:
+                # First try new modular converter
+                parser = SVGParser(svg_path)
+                elements, width, height = parser.parse()
+                
+                if not elements:
+                    logger.warning("No elements found in SVG, falling back to old converter")
+                    model_path = await self.old_svg_to_3d_converter.convert(svg_path, model_path)
+                else:
+                    svg_data = {
+                        'elements': elements,
+                        'width': width,
+                        'height': height
+                    }
+                    result = self.svg_to_3d_converter.convert(svg_data)
+                    if result:
+                        # Save the Blender file
+                        import bpy
+                        bpy.ops.wm.save_as_mainfile(filepath=model_path)
+                    else:
+                        logger.warning("Modular converter failed, falling back to old converter")
+                        model_path = await self.old_svg_to_3d_converter.convert(svg_path, model_path)
+            except Exception as e:
+                logger.warning(f"Error with modular converter: {e}, falling back to old converter")
+                model_path = await self.old_svg_to_3d_converter.convert(svg_path, model_path)
             
             logger.info(f"Converted 3D model saved to {model_path}")
             
@@ -247,7 +301,28 @@ class SVGToVideoPipeline:
             Dictionary with status and output information
         """
         try:
-            model_path = await self.svg_to_3d_converter.convert(svg_path, output_path)
+            # Try new modular converter first
+            parser = SVGParser(svg_path)
+            elements, width, height = parser.parse()
+            
+            if not elements:
+                logger.warning("No elements found in SVG, falling back to old converter")
+                model_path = await self.old_svg_to_3d_converter.convert(svg_path, output_path)
+            else:
+                svg_data = {
+                    'elements': elements,
+                    'width': width,
+                    'height': height
+                }
+                result = self.svg_to_3d_converter.convert(svg_data)
+                if result:
+                    # Save the Blender file
+                    import bpy
+                    bpy.ops.wm.save_as_mainfile(filepath=output_path)
+                    model_path = output_path
+                else:
+                    logger.warning("Modular converter failed, falling back to old converter")
+                    model_path = await self.old_svg_to_3d_converter.convert(svg_path, output_path)
             
             return {
                 "status": "success",
