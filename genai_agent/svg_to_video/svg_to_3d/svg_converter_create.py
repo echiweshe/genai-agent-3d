@@ -12,113 +12,32 @@ import math
 from mathutils import Vector
 
 from svg_utils import log, hex_to_rgb
+from svg_converter_materials_final import SVGMaterialHandler
 
 
 def create_material(self, style):
-    """Create a Blender material from SVG style."""
-    try:
-        # Extract color information
-        fill_color = style.get('fill', '#CCCCCC')
-        stroke_color = style.get('stroke', None)
-        opacity = float(style.get('opacity', 1.0))
-        
-        # Generate a unique material name
-        material_name = f"SVG_Material_{len(self.material_cache)}"
-        
-        # Check if we already have this material
-        material_key = f"{fill_color}_{stroke_color}_{opacity}"
-        if material_key in self.material_cache:
-            return self.material_cache[material_key]
-        
-        # Create new material
-        material = bpy.data.materials.new(name=material_name)
-        material.use_nodes = True
-        
-        # Clear default nodes
-        nodes = material.node_tree.nodes
-        nodes.clear()
-        
-        # Create new nodes
-        output = nodes.new(type='ShaderNodeOutputMaterial')
-        principled = nodes.new(type='ShaderNodeBsdfPrincipled')
-        
-        # Position nodes
-        output.location = (300, 0)
-        principled.location = (0, 0)
-        
-        # Connect nodes
-        material.node_tree.links.new(principled.outputs[0], output.inputs[0])
-        
-        # Set material properties
-        if fill_color and fill_color.lower() != 'none':
-            r, g, b, a = hex_to_rgb(fill_color)
-            principled.inputs['Base Color'].default_value = (r, g, b, 1.0)
-            principled.inputs['Alpha'].default_value = a * opacity
-            
-            # Set viewport color
-            material.diffuse_color = (r, g, b, a * opacity)
-        else:
-            # If no fill, use transparency
-            principled.inputs['Alpha'].default_value = 0.0
-            material.blend_method = 'BLEND'
-        
-        # Set other material properties
-        if 'Specular IOR Level' in principled.inputs:  # Blender 4.x
-            principled.inputs['Specular IOR Level'].default_value = 0.5
-        elif 'Specular' in principled.inputs:  # Blender 3.x
-            principled.inputs['Specular'].default_value = 0.5
-        
-        principled.inputs['Roughness'].default_value = 0.4
-        principled.inputs['Metallic'].default_value = 0.0
-        
-        # Configure material settings
-        material.use_backface_culling = False
-        if opacity < 1.0:
-            material.blend_method = 'BLEND'
-            material.show_transparent_back = False
-        
-        # Add to cache
-        self.material_cache[material_key] = material
-        
-        return material
-    except Exception as e:
-        log(f"Error creating material: {e}")
-        import traceback
-        traceback.print_exc()
-        return None
+    """Create a Blender material from SVG style (deprecated - use SVGMaterialHandler)"""
+    # Initialize material handler if not exists
+    if not hasattr(self, 'material_handler'):
+        self.material_handler = SVGMaterialHandler()
+    
+    # Use the new material handler
+    fill_color = style.get('fill', '#CCCCCC')
+    opacity = float(style.get('opacity', 1.0))
+    fill_opacity = float(style.get('fill-opacity', opacity))
+    
+    return self.material_handler.create_fill_material(fill_color, fill_opacity)
 
 
 def apply_material_to_object(self, obj, style):
     """Apply material to an object."""
     try:
-        material = self.create_material(style)
-        if material:
-            # Remove existing materials
-            while len(obj.data.materials) > 0:
-                obj.data.materials.pop(index=0)
-            
-            # Apply new material
-            obj.data.materials.append(material)
-            
-            # Set alpha blending if needed
-            fill_color = style.get('fill', '#CCCCCC')
-            opacity = float(style.get('opacity', 1.0))
-            
-            if opacity < 1.0 or (fill_color and fill_color.lower() == 'none'):
-                material.blend_method = 'BLEND'
-                obj.show_transparent = True
-            
-            # For curve objects, set material to use object color
-            if obj.type == 'CURVE':
-                material.use_backface_culling = False
-                # Set diffuse color for viewport
-                if fill_color and fill_color.lower() != 'none':
-                    r, g, b, a = hex_to_rgb(fill_color)
-                    obj.color = (r, g, b, a * opacity)
-                    obj.show_wire_color = True
-            
-            return True
-        return False
+        # Initialize material handler if not exists
+        if not hasattr(self, 'material_handler'):
+            self.material_handler = SVGMaterialHandler()
+        
+        # Use the new material handler
+        return self.material_handler.apply_materials_to_object(obj, style)
     except Exception as e:
         log(f"Error applying material: {e}")
         import traceback
@@ -186,6 +105,7 @@ def create_3d_rect(self, element):
             curve.dimensions = '2D'
             curve.resolution_u = 12  # Smoothness of the curve
             curve.extrude = self.extrude_depth  # Extrusion depth
+            curve.fill_mode = 'BOTH'
             
             # Create the spline
             spline = curve.splines.new('POLY')
@@ -232,45 +152,34 @@ def create_3d_rect(self, element):
             
             # Create the object
             obj = bpy.data.objects.new('RoundedRect', curve)
+            bpy.context.collection.objects.link(obj)
         else:
-            # Simple rectangle
-            verts = [
+            # Simple rectangle using curve
+            curve = bpy.data.curves.new('Rectangle', 'CURVE')
+            curve.dimensions = '2D'
+            curve.fill_mode = 'BOTH'
+            curve.extrude = self.extrude_depth
+            
+            # Create spline for rectangle
+            spline = curve.splines.new('POLY')
+            spline.use_cyclic_u = True
+            
+            # Define rectangle corners
+            points = [
                 (bx, by, 0),          # Bottom left
                 (bx + bw, by, 0),      # Bottom right
                 (bx + bw, by - bh, 0), # Top right
                 (bx, by - bh, 0)       # Top left
             ]
             
-            faces = [(0, 1, 2, 3)]
+            # Add points to spline
+            spline.points.add(len(points) - 1)
+            for i, point in enumerate(points):
+                spline.points[i].co = (point[0], point[1], point[2], 1)
             
-            # Create mesh and object
-            mesh = bpy.data.meshes.new('Rect')
-            mesh.from_pydata(verts, [], faces)
-            mesh.update()
-            
-            obj = bpy.data.objects.new('Rect', mesh)
-            
-            # Extrude the mesh
+            # Create object
+            obj = bpy.data.objects.new('Rectangle', curve)
             bpy.context.collection.objects.link(obj)
-            bpy.context.view_layer.objects.active = obj
-            obj.select_set(True)
-            
-            # Switch to edit mode
-            bpy.ops.object.mode_set(mode='EDIT')
-            
-            # Select all faces
-            bpy.ops.mesh.select_all(action='SELECT')
-            
-            # Extrude
-            bpy.ops.mesh.extrude_region_move(
-                TRANSFORM_OT_translate=({"value": (0, 0, self.extrude_depth)})
-            )
-            
-            # Back to object mode
-            bpy.ops.object.mode_set(mode='OBJECT')
-        
-        # Link object to scene
-        bpy.context.collection.objects.link(obj)
         
         # Apply material
         self.apply_material_to_object(obj, element['style'])

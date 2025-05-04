@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="1000" height="800" xmlns="http://www.w3.org/2000/svg">
+    <!-- Row 1: Basic fill and stroke -->
+    <text x="50" y="40" font-size="24" fill="#000000">Row 1: Basic Fill and Stroke</text>
+    
+    <!-- Fill only (red) -->
+    <rect x="50" y="50" width="150" height="100" fill="#ff0000" />
+    <text x="125" y="200" text-anchor="middle" font-size="16" fill="#000000">Fill Only</text>
+    
+    <!-- Stroke only (green) -->
+    <rect x="250" y="50" width="150" height="100" fill="none" stroke="#00ff00" stroke-width="8" />
+    <text x="325" y="200" text-anchor="middle" font-size="16" fill="#000000">Stroke Only</text>
+    
+    <!-- Both fill and stroke -->
+    <rect x="450" y="50" width="150" height="100" fill="#0000ff" stroke="#ffff00" stroke-width="8" />
+    <text x="525" y="200" text-anchor="middle" font-size="16" fill="#000000">Fill + Stroke</text>
+    
+    <!-- Row 2: Transparency -->
+    <text x="50" y="280" font-size="24" fill="#000000">Row 2: Transparency</text>
+    
+    <!-- Semi-transparent fill -->
+    <circle cx="125" cy="350" r="60" fill="#ff00ff" fill-opacity="0.5" />
+    <text x="125" y="450" text-anchor="middle" font-size="16" fill="#000000">50% Fill</text>
+    
+    <!-- Semi-transparent stroke -->
+    <circle cx="325" cy="350" r="60" fill="none" stroke="#00ffff" stroke-width="12" stroke-opacity="0.5" />
+    <text x="325" y="450" text-anchor="middle" font-size="16" fill="#000000">50% Stroke</text>
+    
+    <!-- Different opacities -->
+    <circle cx="525" cy="350" r="60" fill="#ff8800" fill-opacity="0.7" stroke="#0088ff" stroke-width="12" stroke-opacity="0.3" />
+    <text x="525" y="450" text-anchor="middle" font-size="16" fill="#000000">70% Fill / 30% Stroke</text>
+    
+    <!-- Row 3: Complex shapes -->
+    <text x="50" y="520" font-size="24" fill="#000000">Row 3: Complex Shapes</text>
+    
+    <!-- Path with fill and stroke -->
+    <path d="M50,600 L150,550 L150,650 Z" fill="#88ff00" stroke="#880000" stroke-width="6" />
+    <text x="100" y="700" text-anchor="middle" font-size="16" fill="#000000">Triangle</text>
+    
+    <!-- Complex path with curves -->
+    <path d="M250,600 Q300,550 350,600 T450,600" fill="none" stroke="#ff0088" stroke-width="10" stroke-linecap="round" />
+    <text x="350" y="700" text-anchor="middle" font-size="16" fill="#000000">Curved Path</text>
+    
+    <!-- Star shape -->
+    <path d="M600,600 L620,650 L680,650 L630,680 L650,730 L600,700 L550,730 L570,680 L520,650 L580,650 Z" 
+          fill="#ffff00" stroke="#ff0000" stroke-width="4" />
+    <text x="600" y="750" text-anchor="middle" font-size="16" fill="#000000">Star</text>
+</svg>

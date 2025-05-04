@@ -1,49 +1,59 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg width="800" height="600" viewBox="0 0 800 600" xmlns="http://www.w3.org/2000/svg">
-    <!-- Background -->
-    <rect x="0" y="0" width="800" height="600" fill="#ffffff" />
+<svg width="1200" height="800" xmlns="http://www.w3.org/2000/svg">
+    <!-- Title -->
+    <text x="600" y="50" font-size="36" text-anchor="middle" fill="#000000">SVG to 3D Feature Test</text>
     
-    <!-- Basic Shapes Section -->
-    <g id="basic-shapes">
-        <!-- Rectangle with color -->
-        <rect x="50" y="50" width="100" height="60" fill="#ff0000" />
-        
-        <!-- Rectangle with rounded corners -->
-        <rect x="200" y="50" width="100" height="60" rx="15" ry="15" fill="#00ff00" />
-        
-        <!-- Circle -->
-        <circle cx="400" cy="80" r="40" fill="#0000ff" />
-        
-        <!-- Ellipse -->
-        <ellipse cx="550" cy="80" rx="50" ry="30" fill="#ff00ff" />
-    </g>
+    <!-- Row 1: Basic Shapes with Colors -->
+    <text x="100" y="120" font-size="24" fill="#000000">Basic Shapes</text>
     
-    <!-- Lines and Paths Section -->
-    <g id="lines-paths">
-        <!-- Simple line -->
-        <line x1="50" y1="200" x2="150" y2="250" stroke="#ff0000" stroke-width="5" />
-        
-        <!-- Polyline -->
-        <polyline points="200,200 250,220 300,200 350,220" stroke="#00ff00" stroke-width="3" fill="none" />
-        
-        <!-- Polygon (star) -->
-        <polygon points="450,200 470,250 520,250 480,280 500,330 450,300 400,330 420,280 380,250 430,250" 
-                 fill="#ffff00" stroke="#000000" stroke-width="2" />
-    </g>
+    <rect x="100" y="150" width="120" height="80" fill="#ff0000" />
+    <text x="160" y="260" text-anchor="middle" font-size="16">Red Rect</text>
     
-    <!-- Text Section -->
-    <g id="text-elements">
-        <text x="50" y="400" font-size="36" fill="#000000">SVG to 3D</text>
-        <text x="300" y="400" font-size="24" fill="#0000ff" font-family="Arial">Test Complete</text>
-    </g>
+    <rect x="250" y="150" width="120" height="80" fill="#00ff00" rx="15" ry="15" />
+    <text x="310" y="260" text-anchor="middle" font-size="16">Green Rounded</text>
     
-    <!-- Complex Path -->
-    <path d="M50,500 C100,450 150,450 200,500 S300,550 350,500 L400,500 Z" 
-          fill="#ff8800" stroke="#000000" stroke-width="2" />
+    <circle cx="460" cy="190" r="40" fill="#0000ff" />
+    <text x="460" y="260" text-anchor="middle" font-size="16">Blue Circle</text>
     
-    <!-- Group with Transform -->
-    <g transform="translate(600, 400) rotate(45)">
-        <rect x="-30" y="-30" width="60" height="60" fill="#008800" />
-        <circle cx="0" cy="0" r="20" fill="#ffffff" />
-    </g>
+    <ellipse cx="610" cy="190" rx="60" ry="30" fill="#ff00ff" />
+    <text x="610" y="260" text-anchor="middle" font-size="16">Magenta Ellipse</text>
+    
+    <!-- Row 2: Stroke and Fill Combinations -->
+    <text x="100" y="320" font-size="24" fill="#000000">Stroke & Fill</text>
+    
+    <rect x="100" y="350" width="120" height="80" fill="none" stroke="#ff0000" stroke-width="8" />
+    <text x="160" y="460" text-anchor="middle" font-size="16">Stroke Only</text>
+    
+    <rect x="250" y="350" width="120" height="80" fill="#00ff00" stroke="#000000" stroke-width="8" />
+    <text x="310" y="460" text-anchor="middle" font-size="16">Fill + Stroke</text>
+    
+    <circle cx="460" cy="390" r="40" fill="#0000ff" stroke="#ffff00" stroke-width="8" />
+    <text x="460" y="460" text-anchor="middle" font-size="16">Circle Both</text>
+    
+    <!-- Row 3: Transparency -->
+    <text x="100" y="520" font-size="24" fill="#000000">Transparency</text>
+    
+    <rect x="100" y="550" width="120" height="80" fill="#ff0000" opacity="0.5" />
+    <text x="160" y="660" text-anchor="middle" font-size="16">50% Opacity</text>
+    
+    <circle cx="310" cy="590" r="40" fill="#00ff00" fill-opacity="0.3" />
+    <text x="310" y="660" text-anchor="middle" font-size="16">30% Fill</text>
+    
+    <circle cx="460" cy="590" r="40" fill="none" stroke="#0000ff" stroke-width="8" stroke-opacity="0.6" />
+    <text x="460" y="660" text-anchor="middle" font-size="16">60% Stroke</text>
+    
+    <!-- Complex Shapes -->
+    <text x="750" y="120" font-size="24" fill="#000000">Complex Shapes</text>
+    
+    <polygon points="800,150 850,150 875,190 850,230 800,230 775,190" fill="#ffff00" stroke="#ff0000" stroke-width="4" />
+    <text x="825" y="260" text-anchor="middle" font-size="16">Hexagon</text>
+    
+    <path d="M950,150 L1050,150 L1000,230 Z" fill="#00ffff" stroke="#000000" stroke-width="4" />
+    <text x="1000" y="260" text-anchor="middle" font-size="16">Triangle</text>
+    
+    <polyline points="750,350 800,400 850,350 900,400 950,350" fill="none" stroke="#ff00ff" stroke-width="6" />
+    <text x="850" y="460" text-anchor="middle" font-size="16">Polyline</text>
+    
+    <path d="M750,550 Q800,500 850,550 T950,550" fill="none" stroke="#0088ff" stroke-width="8" stroke-linecap="round" />
+    <text x="850" y="620" text-anchor="middle" font-size="16">Curved Path</text>
 </svg>
