@@ -1,79 +1,125 @@
+﻿"""
+Test script for the SVG generator.
+This script tests the SVG generator with Claude and OpenAI LLMs.
 """
-Test script for the SVG Generator component.
 
-This script tests the SVG Generator component in isolation to verify it works properly.
-"""
-
-import asyncio
 import os
 import sys
+import time
 from pathlib import Path
-from dotenv import load_dotenv
 
-# Load environment variables from the main project .env file
-env_path = Path(__file__).parent / "genai_agent_project" / ".env"
-if env_path.exists():
-    load_dotenv(dotenv_path=env_path)
-    print(f"Loaded environment variables from {env_path}")
-else:
-    # Fall back to local .env file if it exists
-    local_env = Path(__file__).parent / ".env"
-    if local_env.exists():
-        load_dotenv(dotenv_path=local_env)
-        print(f"Loaded environment variables from {local_env}")
-    else:
-        print("No .env file found! API keys may not be available.")
+# Add project directory to path
+project_dir = Path("C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/genai_agent_project")
+sys.path.insert(0, str(project_dir))
 
-# Add the project root to sys.path
-sys.path.insert(0, str(Path(__file__).parent))
+# Import SVG generator
+try:
+    from genai_agent_project.genai_agent.svg_to_video.svg_generator.svg_generator import generate_svg
+    print("Successfully imported SVG generator")
+except ImportError as e:
+    print(f"Error importing SVG generator: {e}")
+    sys.exit(1)
 
-# Import the SVG Generator
-from genai_agent.svg_to_video.svg_generator import SVGGenerator
+# Define output directory
+output_dir = Path("C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/svg")
+os.makedirs(output_dir, exist_ok=True)
 
-async def test_svg_generator():
-    """Test the SVG Generator component."""
-    print("Testing SVG Generator...")
-    
-    # Create an instance of the SVG Generator
-    generator = SVGGenerator()
-    
-    # Check available providers
-    providers = generator.get_available_providers()
-    print(f"Available providers: {providers}")
-    
-    if not providers:
-        print("No LLM providers available. Please check your API keys.")
-        print("Current environment variables:")
-        print(f"ANTHROPIC_API_KEY: {'Set' if os.environ.get('ANTHROPIC_API_KEY') else 'Not set'}")
-        print(f"OPENAI_API_KEY: {'Set' if os.environ.get('OPENAI_API_KEY') else 'Not set'}")
-        return
-    
-    # Get the first available provider
-    provider = providers[0]
-    print(f"Using provider: {provider}")
-    
-    # Test generating an SVG
-    concept = "A simple flowchart with two boxes connected by an arrow"
-    print(f"Generating SVG for concept: {concept}")
+# Test with Claude
+def test_with_claude():
+    print("\nTesting SVG generator with Claude...")
+    output_file = output_dir / f"claude_test_flowchart_{int(time.time())}.svg"
     
     try:
-        svg_content = await generator.generate_svg(concept, provider=provider)
+        result = generate_svg(
+            prompt="Create a flowchart showing the process of making coffee",
+            diagram_type="flowchart",
+            output_file=str(output_file),
+            provider="claude"  # Use Claude provider
+        )
         
-        # Save the SVG to a file
-        output_dir = Path("outputs")
-        output_dir.mkdir(exist_ok=True)
-        output_path = output_dir / "test_svg.svg"
-        
-        with open(output_path, "w", encoding="utf-8") as f:
-            f.write(svg_content)
-        
-        print(f"SVG generated successfully and saved to {output_path}")
-        print(f"SVG content (preview):\n{svg_content[:500]}...")
-        
+        if result and os.path.isfile(output_file):
+            print(f"Success! SVG generated at: {output_file}")
+            print(f"File size: {os.path.getsize(output_file)} bytes")
+            return True
+        else:
+            print("Failed to generate SVG with Claude")
+            return False
     except Exception as e:
-        print(f"Error generating SVG: {e}")
-        import traceback
-        traceback.print_exc()
+        print(f"Error generating SVG with Claude: {e}")
+        return False
+
+# Test with OpenAI
+def test_with_openai():
+    print("\nTesting SVG generator with OpenAI...")
+    output_file = output_dir / f"openai_test_flowchart_{int(time.time())}.svg"
+    
+    try:
+        result = generate_svg(
+            prompt="Create a flowchart showing the process of making coffee",
+            diagram_type="flowchart",
+            output_file=str(output_file),
+            provider="openai"  # Use OpenAI provider
+        )
+        
+        if result and os.path.isfile(output_file):
+            print(f"Success! SVG generated at: {output_file}")
+            print(f"File size: {os.path.getsize(output_file)} bytes")
+            return True
+        else:
+            print("Failed to generate SVG with OpenAI")
+            return False
+    except Exception as e:
+        print(f"Error generating SVG with OpenAI: {e}")
+        return False
+
+# Test with mock provider as fallback
+def test_with_mock():
+    print("\nTesting SVG generator with mock provider...")
+    output_file = output_dir / f"mock_test_flowchart_{int(time.time())}.svg"
+    
+    try:
+        result = generate_svg(
+            prompt="Create a flowchart showing the process of making coffee",
+            diagram_type="flowchart",
+            output_file=str(output_file),
+            provider="mock"  # Use mock provider
+        )
+        
+        if result and os.path.isfile(output_file):
+            print(f"Success! SVG generated at: {output_file}")
+            print(f"File size: {os.path.getsize(output_file)} bytes")
+            return True
+        else:
+            print("Failed to generate SVG with mock provider")
+            return False
+    except Exception as e:
+        print(f"Error generating SVG with mock provider: {e}")
+        return False
 
 if __name__ == "__main__":
-    asyncio.run(test_svg_generator())
+    print("SVG Generator Test")
+    print("=================")
+    
+    # Run tests
+    claude_success = test_with_claude()
+    openai_success = test_with_openai()
+    mock_success = test_with_mock()
+    
+    # Print summary
+    print("\nTest Summary:")
+    print(f"Claude: {'SUCCESS' if claude_success else 'FAILED'}")
+    print(f"OpenAI: {'SUCCESS' if openai_success else 'FAILED'}")
+    print(f"Mock: {'SUCCESS' if mock_success else 'FAILED'}")
+    
+    # Overall result
+    if claude_success or openai_success:
+        print("\nSVG generator is working with at least one LLM provider!")
+        sys.exit(0)
+    elif mock_success:
+        print("\nSVG generator is working with mock provider only.")
+        print("Check your LLM provider configurations.")
+        sys.exit(1)
+    else:
+        print("\nSVG generator is not working with any provider.")
+        print("Please check the logs for errors.")
+        sys.exit(1)

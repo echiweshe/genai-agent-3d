@@ -31,16 +31,8 @@ class ClaudeDirectSVGGenerator:
         if not self.api_key:
             raise ValueError("Anthropic API key not provided and not found in environment")
         
-        logger.info(f"Initialized Claude Direct SVG Generator with API key: {self.api_key[:8]}...")
-        
         self.api_url = "https://api.anthropic.com/v1/messages"
-        # Use a model that is known to work well with SVG generation
-        self.model = "claude-3-opus-20240229"  # Use Claude 3 Opus for high-quality SVGs
-        
-        # Verify API key is set
-        if not self.api_key or len(self.api_key) < 10:
-            logger.error("Invalid or missing Anthropic API key")
-            raise ValueError("Invalid Anthropic API key. Please check your configuration.")
+        self.model = "claude-3-7-sonnet-20250219"  # Default to latest Claude model for high-quality SVGs
         
     def set_model(self, model_name: str) -> None:
         """
@@ -63,9 +55,6 @@ class ClaudeDirectSVGGenerator:
             
         Returns:
             The generated SVG as a string
-        
-        Raises:
-            ValueError: If SVG generation fails or no valid SVG is returned
         """
         # Create the prompt with specific instructions
         prompt = self._create_svg_prompt(concept, style)
@@ -74,13 +63,7 @@ class ClaudeDirectSVGGenerator:
         response = self._call_claude_api(prompt, temperature)
         
         # Extract the SVG from the response
-        # This will raise ValueError if no valid SVG is found
         svg = self._extract_svg(response)
-        
-        # Additional validation to ensure we have valid SVG
-        if not svg or not svg.strip().startswith("<svg"):
-            logger.error(f"Invalid SVG content returned: {svg[:100]}...")
-            raise ValueError("Invalid SVG content returned from Claude API")
         
         return svg
     
@@ -116,58 +99,27 @@ class ClaudeDirectSVGGenerator:
         Returns:
             A prompt string for Claude
         """
-        # Determine specific diagram type based on style
-        diagram_specific_instructions = ""
-        if style and "flowchart" in style.lower():
-            diagram_specific_instructions = """
-- Create a flowchart with proper flow direction (top-to-bottom or left-to-right)  
-- Use rectangles for processes, diamonds for decisions, etc.
-- Connect shapes with arrows showing the process flow
-- Include start and end shapes
-- Add clear labels to all components and connectors
-            """
-        elif style and "sequence" in style.lower():
-            diagram_specific_instructions = """
-- Create a sequence diagram with actors/lifelines at the top
-- Show messages between participants with horizontal arrows
-- Use solid lines for synchronous calls, dashed for returns
-- Include activation boxes when appropriate
-- Arrange time flowing from top to bottom
-            """
-        elif style and "network" in style.lower():
-            diagram_specific_instructions = """
-- Create a network diagram showing connected devices/nodes
-- Use appropriate icons or shapes for different device types
-- Show connection types with different line styles
-- Add labels for IP addresses, hostnames, or other identifiers
-- Use a logical layout that minimizes crossing lines
-            """
-        
         base_prompt = f"""
 I need you to create an SVG diagram to visualize this concept:
 
 {concept}
 
 Requirements:
-1. Generate ONLY valid SVG code - no explanations, markdown, or other content
-2. Use viewBox="0 0 800 600" for dimensions
-3. Include appropriate shapes, text, lines, and paths
-4. Use clear, accessible colors with good contrast
+1. Generate ONLY valid SVG code
+2. Use a viewBox with appropriate dimensions
+3. Include basic shapes, text, lines, and paths as needed
+4. Use clear colors and readable text
 5. Make the diagram informative and visually appealing
 6. Ensure all elements have proper positioning
-7. Use appropriate stroke and fill attributes
-8. Label all important components
-9. Use a font-family that's widely available (Arial, Helvetica, sans-serif)
-
-{diagram_specific_instructions}
+7. Use stroke and fill attributes appropriately
+8. Design for clarity and readability
 
 Your response should contain ONLY the raw SVG code without any additional text, code blocks, or explanations.
 """
         
-        if style and not diagram_specific_instructions:
+        if style:
             base_prompt += f"\nAdditional style guidelines: {style}"
         
-        logger.debug(f"Created SVG prompt: {base_prompt[:200]}...")
         return base_prompt
     
     def _call_claude_api(self, prompt: str, temperature: float = 0.2) -> Dict[str, Any]:
@@ -198,9 +150,8 @@ Your response should contain ONLY the raw SVG code without any additional text, 
         
         try:
             logger.info(f"Calling Claude API with model: {self.model}")
-            logger.info(f"Using API key: {self.api_key[:8]}...")
             start_time = time.time()
-            response = requests.post(self.api_url, headers=headers, json=payload, timeout=180)
+            response = requests.post(self.api_url, headers=headers, json=payload, timeout=120)
             response.raise_for_status()
             end_time = time.time()
             logger.info(f"Claude API call completed in {end_time - start_time:.2f} seconds")
@@ -234,24 +185,17 @@ Your response should contain ONLY the raw SVG code without any additional text, 
                 if item.get("type") == "text":
                     text += item.get("text", "")
             
-            logger.debug(f"Extracted text from Claude: {text[:100]}...")
-            
             # Try to extract SVG using regex
             svg_match = re.search(r'<svg[^>]*>[\s\S]*<\/svg>', text)
             if svg_match:
-                svg_content = svg_match.group(0)
-                logger.info(f"Successfully extracted SVG: {len(svg_content)} chars")
-                return svg_content
+                return svg_match.group(0)
             
-            # If no SVG pattern found, check if the text itself is an SVG
+            # If no SVG pattern found, return the text as is
+            # This is a fallback in case Claude returns just the raw SVG without any extra formatting
             if text.strip().startswith("<svg") and text.strip().endswith("</svg>"):
-                logger.info(f"Found SVG in raw text response: {len(text.strip())} chars")
                 return text.strip()
             
-            # No fallback SVG - just raise error if no SVG content found
-            logger.error("No SVG content found in Claude response.")
-            logger.error(f"Response content (truncated): {text[:500]}...")
-            raise ValueError("No SVG content found in Claude API response")
+            raise ValueError("No SVG content found in the response")
             
         except Exception as e:
             logger.error(f"Error extracting SVG: {e}")

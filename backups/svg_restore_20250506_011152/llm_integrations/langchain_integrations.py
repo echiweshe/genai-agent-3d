@@ -1,4 +1,4 @@
-﻿"""
+"""
 LangChain-based LLM Integrations
 
 This module provides direct integration with various LLM providers through LangChain.
@@ -109,82 +109,22 @@ class LangChainLLMService:
                         
                         # Approach 1: direct initialization with anthropic_api_key
                         try:
-                            try:
-
-                                self.providers["claude"] = ChatAnthropic(
+                            self.providers["claude"] = ChatAnthropic(
                                 anthropic_api_key=anthropic_api_key,
                                 temperature=0.7,
                                 model="claude-3-7-sonnet-20250219"  # Use latest model
                             )
-
-                            except AttributeError as e:
-
-                                if "count_tokens" in str(e):
-
-                                    # Fix for "Anthropic object has no attribute count_tokens"
-
-                                    logging.warning("Using workaround for ChatAnthropic count_tokens issue")
-
-                                    from langchain.chat_models.anthropic import ChatAnthropic as ChatAnthropicFixed
-
-                                    # Monkey patch to fix the missing count_tokens attribute
-
-                                    if not hasattr(ChatAnthropicFixed._client_obj.__class__, "count_tokens"):
-
-                                        ChatAnthropicFixed._client_obj.__class__.count_tokens = lambda self, text: len(text.split())
-
-                                    self.providers["claude"] = ChatAnthropicFixed(
-                                anthropic_api_key=anthropic_api_key,
-                                temperature=0.7,
-                                model="claude-3-7-sonnet-20250219"  # Use latest model
-                            )
-
-                                else:
-
-                                    logging.error(f"Failed to initialize Claude provider: {str(e)}")
-
-                            
                             logger.info("Initialized Claude provider with anthropic_api_key")
                         except (TypeError, ValueError) as e:
                             logger.warning(f"Failed to initialize Claude with anthropic_api_key: {str(e)}")
                             
                             # Approach 2: try with api_key
                             try:
-                                try:
-
-                                    self.providers["claude"] = ChatAnthropic(
+                                self.providers["claude"] = ChatAnthropic(
                                     api_key=anthropic_api_key,
                                     temperature=0.7,
                                     model="claude-3-7-sonnet-20250219"
                                 )
-
-                                except AttributeError as e:
-
-                                    if "count_tokens" in str(e):
-
-                                        # Fix for "Anthropic object has no attribute count_tokens"
-
-                                        logging.warning("Using workaround for ChatAnthropic count_tokens issue")
-
-                                        from langchain.chat_models.anthropic import ChatAnthropic as ChatAnthropicFixed
-
-                                        # Monkey patch to fix the missing count_tokens attribute
-
-                                        if not hasattr(ChatAnthropicFixed._client_obj.__class__, "count_tokens"):
-
-                                            ChatAnthropicFixed._client_obj.__class__.count_tokens = lambda self, text: len(text.split())
-
-                                        self.providers["claude"] = ChatAnthropicFixed(
-                                    api_key=anthropic_api_key,
-                                    temperature=0.7,
-                                    model="claude-3-7-sonnet-20250219"
-                                )
-
-                                    else:
-
-                                        logging.error(f"Failed to initialize Claude provider: {str(e)}")
-
-                                
                                 logger.info("Initialized Claude provider with api_key")
                             except Exception as e:
                                 logger.warning(f"Failed to initialize Claude with api_key: {str(e)}")
@@ -197,41 +137,11 @@ class LangChainLLMService:
                                     anthropic_client = Anthropic(api_key=anthropic_api_key)
                                     
                                     # Create ChatAnthropic with the client
-                                    try:
-
-                                        self.providers["claude"] = ChatAnthropic(
+                                    self.providers["claude"] = ChatAnthropic(
                                         client=anthropic_client, 
                                         temperature=0.7,
                                         model="claude-3-7-sonnet-20250219"
                                     )
-
-                                    except AttributeError as e:
-
-                                        if "count_tokens" in str(e):
-
-                                            # Fix for "Anthropic object has no attribute count_tokens"
-
-                                            logging.warning("Using workaround for ChatAnthropic count_tokens issue")
-
-                                            from langchain.chat_models.anthropic import ChatAnthropic as ChatAnthropicFixed
-
-                                            # Monkey patch to fix the missing count_tokens attribute
-
-                                            if not hasattr(ChatAnthropicFixed._client_obj.__class__, "count_tokens"):
-
-                                                ChatAnthropicFixed._client_obj.__class__.count_tokens = lambda self, text: len(text.split())
-
-                                            self.providers["claude"] = ChatAnthropicFixed(
-                                        client=anthropic_client, 
-                                        temperature=0.7,
-                                        model="claude-3-7-sonnet-20250219"
-                                    )
-
-                                        else:
-
-                                            logging.error(f"Failed to initialize Claude provider: {str(e)}")
-
-                                    
                                     logger.info("Initialized Claude provider with direct client")
                                 except Exception as e:
                                     logger.error(f"All Claude initialization methods failed: {str(e)}")
@@ -366,4 +276,3 @@ def get_langchain_llm_service() -> LangChainLLMService:
             logger.error("Failed to create LangChain LLM service due to missing dependencies")
             return None
     return _instance
-
