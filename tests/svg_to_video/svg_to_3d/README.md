@@ -2,6 +2,27 @@
 
 This directory contains comprehensive tests for the SVG to 3D converter module located at `genai_agent/svg_to_video/svg_to_3d/`.
 
+## Current Status
+
+### ✅ Working Features
+- Basic shape conversion (rectangles, circles, ellipses, lines, polygons, paths)
+- Text rendering with proper 3D extrusion
+- Fill colors correctly applied
+- Scene setup with camera and lighting
+- Modular architecture with separate components
+
+### ❌ Known Issues
+- Transparency/opacity not working (all materials appear solid)
+- Strokes on mesh objects (circles) not rendering
+- Stroke-only shapes (fill="none") have rendering issues
+
+### 🚧 Work in Progress
+- Material system refinement for transparency
+- Stroke implementation for mesh objects
+- Comprehensive test coverage
+
+For detailed status, see [CURRENT_STATUS.md](./CURRENT_STATUS.md)
+
 ## Important: Blender Requirement
 
 The SVG to 3D converter uses Blender's Python modules (like `mathutils` and `bpy`), so all tests must be run with Blender's Python interpreter.

@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="600" height="400" xmlns="http://www.w3.org/2000/svg">
+    <!-- Row 1: Test cases that were not working -->
+    <text x="300" y="30" text-anchor="middle" font-size="24" fill="#000000">Transparency and Stroke Test</text>
+    
+    <!-- Magenta circle with 50% opacity (was showing as 100%) -->
+    <circle cx="100" cy="100" r="50" fill="#ff00ff" opacity="0.5" />
+    <text x="100" y="170" text-anchor="middle" font-size="14" fill="#000000">50% Opacity</text>
+    
+    <!-- Cyan circle with black stroke (stroke was missing) -->
+    <circle cx="300" cy="100" r="50" fill="#00ffff" stroke="#000000" stroke-width="8" />
+    <text x="300" y="170" text-anchor="middle" font-size="14" fill="#000000">Black Stroke</text>
+    
+    <!-- Red circle with no fill, only stroke -->
+    <circle cx="500" cy="100" r="50" fill="none" stroke="#ff0000" stroke-width="8" />
+    <text x="500" y="170" text-anchor="middle" font-size="14" fill="#000000">Stroke Only</text>
+    
+    <!-- Row 2: More test cases -->
+    <text x="300" y="230" text-anchor="middle" font-size="20" fill="#000000">Combined Effects</text>
+    
+    <!-- Semi-transparent fill with solid stroke -->
+    <circle cx="100" cy="300" r="50" fill="#00ff00" fill-opacity="0.5" stroke="#0000ff" stroke-width="8" />
+    <text x="100" y="370" text-anchor="middle" font-size="14" fill="#000000">50% Fill + Stroke</text>
+    
+    <!-- Solid fill with semi-transparent stroke -->
+    <circle cx="300" cy="300" r="50" fill="#ff8800" stroke="#000000" stroke-width="8" stroke-opacity="0.5" />
+    <text x="300" y="370" text-anchor="middle" font-size="14" fill="#000000">Fill + 50% Stroke</text>
+    
+    <!-- Both semi-transparent -->
+    <circle cx="500" cy="300" r="50" fill="#0000ff" fill-opacity="0.7" stroke="#ff0000" stroke-width="8" stroke-opacity="0.3" />
+    <text x="500" y="370" text-anchor="middle" font-size="14" fill="#000000">70% Fill + 30% Stroke</text>
+</svg>

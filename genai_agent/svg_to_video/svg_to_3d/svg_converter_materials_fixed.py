@@ -1,7 +1,6 @@
 """
 Fixed material handling for SVG to 3D converter
-
-This module properly handles strokes and fills for all object types.
+Corrects transparency and stroke issues
 """
 
 import bpy
@@ -15,22 +14,22 @@ class SVGMaterialHandler:
     def __init__(self):
         self.material_cache = {}
     
-    def create_material(self, color, opacity=1.0, is_stroke=False):
-        """Create a material for SVG elements"""
+    def create_material(self, color, opacity=1.0, material_type='fill'):
+        """Create a material for SVG elements with proper transparency"""
         if not color or color.lower() == 'none':
             return None
         
         # Create cache key
-        cache_key = f"{'stroke' if is_stroke else 'fill'}_{color}_{opacity}"
+        cache_key = f"{material_type}_{color}_{opacity}"
         if cache_key in self.material_cache:
             return self.material_cache[cache_key]
         
         # Create new material
-        material_name = f"SVG_{'Stroke' if is_stroke else 'Fill'}_{len(self.material_cache)}"
+        material_name = f"SVG_{material_type}_{color.replace('#', '')}_{int(opacity*100)}"
         material = bpy.data.materials.new(name=material_name)
         material.use_nodes = True
         
-        # Get nodes
+        # Get node tree
         nodes = material.node_tree.nodes
         links = material.node_tree.links
         
@@ -38,59 +37,51 @@ class SVGMaterialHandler:
         nodes.clear()
         
         # Create nodes
-        output = nodes.new('ShaderNodeOutputMaterial')
-        principled = nodes.new('ShaderNodeBsdfPrincipled')
+        output_node = nodes.new('ShaderNodeOutputMaterial')
+        principled_node = nodes.new('ShaderNodeBsdfPrincipled')
         
         # Position nodes
-        output.location = (300, 0)
-        principled.location = (0, 0)
+        output_node.location = (300, 0)
+        principled_node.location = (0, 0)
         
-        # Connect nodes
-        links.new(principled.outputs['BSDF'], output.inputs['Surface'])
-        
-        # Parse color
+        # Parse color and set it
         r, g, b, a = hex_to_rgb(color)
         
-        # Set base color
-        principled.inputs['Base Color'].default_value = (r, g, b, 1.0)
-        
-        # Handle transparency
-        if opacity < 1.0 or a < 1.0:
-            # Add transparency setup
-            mix_shader = nodes.new('ShaderNodeMixShader')
-            transparent = nodes.new('ShaderNodeBsdfTransparent')
-            
-            mix_shader.location = (150, 0)
-            transparent.location = (-150, -100)
-            
-            # Connect transparency
-            links.new(transparent.outputs['BSDF'], mix_shader.inputs[1])
-            links.new(principled.outputs['BSDF'], mix_shader.inputs[2])
-            links.new(mix_shader.outputs['Shader'], output.inputs['Surface'])
-            
-            # Set mix factor for transparency
-            mix_shader.inputs['Fac'].default_value = a * opacity
-            
-            # Set material blend mode
-            material.blend_method = 'BLEND'
-            material.use_backface_culling = False
-            material.show_transparent_back = True
+        # Set the base color
+        principled_node.inputs['Base Color'].default_value = (r, g, b, 1.0)
         
         # Set material properties
-        principled.inputs['Roughness'].default_value = 0.5 if is_stroke else 0.7
-        principled.inputs['Metallic'].default_value = 0.0
+        principled_node.inputs['Roughness'].default_value = 0.5
+        principled_node.inputs['Metallic'].default_value = 0.0
         
-        if 'Specular IOR Level' in principled.inputs:  # Blender 4.x
-            principled.inputs['Specular IOR Level'].default_value = 0.5
-        elif 'Specular' in principled.inputs:  # Blender 3.x
-            principled.inputs['Specular'].default_value = 0.5
+        # Handle transparency - connect alpha
+        principled_node.inputs['Alpha'].default_value = opacity
         
-        # Set viewport display color
-        material.diffuse_color = (r, g, b, a * opacity)
+        # Connect shader to output
+        links.new(principled_node.outputs['BSDF'], output_node.inputs['Surface'])
+        
+        # Configure material blend mode for transparency
+        if opacity < 1.0:
+            material.blend_method = 'BLEND'
+            material.use_backface_culling = False
+            material.show_transparent_back = False
+        else:
+            material.blend_method = 'OPAQUE'
+        
+        # Set viewport display color with opacity
+        material.diffuse_color = (r, g, b, opacity)
         
         # Cache and return
         self.material_cache[cache_key] = material
         return material
+    
+    def create_stroke_material(self, color, opacity=1.0):
+        """Create a stroke material"""
+        return self.create_material(color, opacity, 'stroke')
+    
+    def create_fill_material(self, color, opacity=1.0):
+        """Create a fill material"""
+        return self.create_material(color, opacity, 'fill')
     
     def apply_materials_to_object(self, obj, style):
         """Apply materials to object based on SVG style"""
@@ -101,66 +92,112 @@ class SVGMaterialHandler:
         fill_opacity = float(style.get('fill-opacity', opacity))
         stroke_opacity = float(style.get('stroke-opacity', opacity))
         
+        # Debug logging
+        log(f"Applying materials to {obj.name}:")
+        log(f"  Fill: {fill_color} (opacity: {fill_opacity})")
+        log(f"  Stroke: {stroke_color} (opacity: {stroke_opacity}, width: {stroke_width})")
+        
         # Clear existing materials
         obj.data.materials.clear()
         
         # Handle different object types
-        if obj.type == 'CURVE':
-            # For curves, we need to set proper fill mode and bevel
+        if obj.type == 'MESH':
+            # For meshes (circles, etc.)
+            has_fill = fill_color and fill_color.lower() != 'none'
+            has_stroke = stroke_color and stroke_color.lower() != 'none'
+            
+            # Apply fill material if specified
+            if has_fill:
+                fill_mat = self.create_fill_material(fill_color, fill_opacity)
+                if fill_mat:
+                    obj.data.materials.append(fill_mat)
+                    log(f"  Applied fill material: {fill_mat.name}")
+            
+            # Apply stroke using solidify modifier if specified
+            if has_stroke:
+                # Create stroke material
+                stroke_mat = self.create_stroke_material(stroke_color, stroke_opacity)
+                if stroke_mat:
+                    # Add solidify modifier for stroke effect
+                    solidify = obj.modifiers.new(name="Stroke", type='SOLIDIFY')
+                    solidify.thickness = stroke_width * 0.02  # Scale factor
+                    solidify.offset = 1  # Offset outward
+                    solidify.use_rim = True
+                    solidify.use_rim_only = True
+                    
+                    # Add stroke material as second material
+                    obj.data.materials.append(stroke_mat)
+                    solidify.material_offset = 1  # Use second material for rim
+                    
+                    log(f"  Added stroke as solidify modifier with material: {stroke_mat.name}")
+        
+        elif obj.type == 'CURVE':
             has_fill = fill_color and fill_color.lower() != 'none'
             has_stroke = stroke_color and stroke_color.lower() != 'none'
             
             if has_fill and has_stroke:
-                # Both fill and stroke - create extruded curve with bevel
+                # Both fill and stroke
                 obj.data.fill_mode = 'BOTH'
                 obj.data.use_fill_caps = True
-                obj.data.bevel_depth = stroke_width * 0.005
-                obj.data.bevel_resolution = 2
                 
                 # Apply fill material
-                fill_mat = self.create_material(fill_color, fill_opacity, False)
+                fill_mat = self.create_fill_material(fill_color, fill_opacity)
                 if fill_mat:
                     obj.data.materials.append(fill_mat)
+                    log(f"  Applied fill material: {fill_mat.name}")
                 
-                # Create stroke outline (TODO: implement as separate geometry)
+                # Set bevel for stroke effect
+                obj.data.bevel_depth = stroke_width * 0.01
+                obj.data.bevel_resolution = 2
+                
+                # Apply stroke material
+                stroke_mat = self.create_stroke_material(stroke_color, stroke_opacity)
+                if stroke_mat:
+                    obj.data.materials.append(stroke_mat)
+                    log(f"  Applied stroke material: {stroke_mat.name}")
                 
             elif has_fill:
-                # Fill only - extruded shape
+                # Fill only
                 obj.data.fill_mode = 'BOTH'
                 obj.data.use_fill_caps = True
                 obj.data.bevel_depth = 0
                 
-                fill_mat = self.create_material(fill_color, fill_opacity, False)
+                fill_mat = self.create_fill_material(fill_color, fill_opacity)
                 if fill_mat:
                     obj.data.materials.append(fill_mat)
-                    
+                    log(f"  Applied fill material: {fill_mat.name}")
+                
             elif has_stroke:
-                # Stroke only - just the outline
-                obj.data.fill_mode = 'NONE'
-                obj.data.bevel_depth = stroke_width * 0.005
+                # Stroke only - use BACK mode for stroke-only effect
+                obj.data.fill_mode = 'BACK'  # Changed from 'FULL' to valid mode
+                obj.data.bevel_depth = stroke_width * 0.01
                 obj.data.bevel_resolution = 2
                 
-                stroke_mat = self.create_material(stroke_color, stroke_opacity, True)
+                stroke_mat = self.create_stroke_material(stroke_color, stroke_opacity)
                 if stroke_mat:
                     obj.data.materials.append(stroke_mat)
+                    log(f"  Applied stroke material: {stroke_mat.name}")
             
             # Set extrusion
-            if has_fill or has_stroke:
-                obj.data.extrude = 0.1  # Default extrusion depth
+            obj.data.extrude = 0.1
         
-        elif obj.type == 'MESH':
-            # For meshes, apply fill material
+        elif obj.type == 'FONT':
+            # For text objects
             if fill_color and fill_color.lower() != 'none':
-                fill_mat = self.create_material(fill_color, fill_opacity, False)
+                fill_mat = self.create_fill_material(fill_color, fill_opacity)
                 if fill_mat:
                     obj.data.materials.append(fill_mat)
+                    log(f"  Applied fill material to text: {fill_mat.name}")
+            
+            # Set text extrusion
+            obj.data.extrude = 0.05
         
-        # Set object viewport color
+        # Set object transparency flags
         if obj.data.materials:
+            needs_transparency = opacity < 1.0 or fill_opacity < 1.0 or stroke_opacity < 1.0
+            obj.show_transparent = needs_transparency
+            
+            # For viewport display
             obj.color = obj.data.materials[0].diffuse_color
-        
-        # Enable transparency in viewport if needed
-        if opacity < 1.0 or fill_opacity < 1.0 or stroke_opacity < 1.0:
-            obj.show_transparent = True
         
         return True

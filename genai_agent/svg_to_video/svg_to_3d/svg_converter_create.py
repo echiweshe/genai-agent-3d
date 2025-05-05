@@ -12,7 +12,7 @@ import math
 from mathutils import Vector
 
 from svg_utils import log, hex_to_rgb
-from svg_converter_materials_final import SVGMaterialHandler
+from svg_converter_materials_fixed import SVGMaterialHandler
 
 
 def create_material(self, style):
@@ -510,8 +510,8 @@ def create_3d_text(self, element):
             # If font setting fails, continue with default
             pass
         
-        # Scale text based on font size
-        text_scale = (font_size / 12.0) * self.scale_factor
+        # Scale text based on font size (increased for better visibility)
+        text_scale = (font_size / 8.0) * self.scale_factor  # Changed from /12.0 to /8.0
         
         # Create the object
         obj = bpy.data.objects.new(text, curve)
