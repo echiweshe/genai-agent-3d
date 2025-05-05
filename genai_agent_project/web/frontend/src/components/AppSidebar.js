@@ -18,6 +18,7 @@ import ViewInArIcon from '@mui/icons-material/ViewInAr';
 import SceneIcon from '@mui/icons-material/Landscape';
 import DiagramIcon from '@mui/icons-material/Schema';
 import BlenderIcon from '@mui/icons-material/Animation';
+import VideoCameraBackIcon from '@mui/icons-material/VideoCameraBack';
 import SettingsIcon from '@mui/icons-material/Settings';
 import ChatIcon from '@mui/icons-material/Chat';
 
@@ -35,6 +36,7 @@ const AppSidebar = ({ open, onClose, currentPath, navigate }) => {
     { text: 'Scene Editor', icon: <SceneIcon />, path: '/scene' },
     { text: 'Diagrams', icon: <DiagramIcon />, path: '/diagrams' },
     { text: 'Blender Scripts', icon: <BlenderIcon />, path: '/blender-scripts' },
+    { text: 'SVG to Video', icon: <VideoCameraBackIcon />, path: '/svg-to-video' },
     { text: 'LLM Test', icon: <ChatIcon />, path: '/llm-test' },
     { text: 'Settings', icon: <SettingsIcon />, path: '/settings' },
   ];

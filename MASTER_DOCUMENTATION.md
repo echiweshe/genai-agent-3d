@@ -253,17 +253,20 @@ For operations requiring LLM generation:
   - Advantages: Higher quality, more capabilities, no local resource usage
   - Disadvantages: API costs, requires internet, potential privacy concerns
 
-## SVG to 3D Workflow
+## SVG to Video Pipeline
 
-One of the key workflows in GenAI Agent 3D is the SVG to 3D pipeline, which enables the creation of sophisticated 3D visualizations from SVG diagrams.
+One of the key workflows in GenAI Agent 3D is the SVG to Video pipeline, which enables the creation of sophisticated 3D visualizations and videos from SVG diagrams generated using AI.
 
-### Workflow Steps
+### SVG to Video Workflow Steps
 
-1. **SVG Generation**: Create technical diagrams as SVG using AI
-2. **Element Extraction**: Extract individual elements from the SVG
-3. **3D Conversion**: Convert 2D elements to 3D models
-4. **Animation Setup**: Set up animation sequences
-5. **Integration**: Integrate with presentations or videos
+1. **SVG Generation**: Create technical diagrams as SVG using AI (Claude, OpenAI, etc.)
+2. **Element Extraction**: Extract individual elements from the SVG for 3D conversion
+3. **3D Conversion**: Convert 2D elements to 3D models using Blender integration
+4. **Animation**: Apply animations to the 3D models
+5. **Rendering**: Render the animated 3D models to video
+6. **Integration**: Integrate with presentations or training materials
+
+This workflow is now fully integrated into the web UI with a dedicated SVG to Video page that guides users through each step of the process.
 
 ### SVG Generation with Claude
 
@@ -400,10 +403,11 @@ The animated 3D scene can be integrated with PowerPoint:
   - [ ] Add lighting presets
   - [ ] Implement camera positioning options
   - [ ] Support scene composition with existing models
-- [ ] Develop SVG generation and processing workflow
-  - [ ] Implement Claude-based SVG diagram generation
-  - [ ] Create SVG element extraction tools
-  - [ ] Build SVG to 3D model conversion process
+- [x] Develop SVG generation and processing workflow
+  - [x] Implement Claude-based SVG diagram generation
+  - [x] Create SVG element extraction tools
+  - [x] Build SVG to 3D model conversion process
+  - [x] Integrate SVG to Video pipeline into web UI
 - [ ] Strengthen Blender integration
   - [ ] Improve Blender script generation
   - [ ] Add batch processing capabilities
@@ -433,9 +437,10 @@ The animated 3D scene can be integrated with PowerPoint:
 
 ### Phase 4: Production Features (Long-term)
 
-- [ ] Implement video rendering pipeline
-  - [ ] Create rendering queue system
-  - [ ] Add video processing options (resolution, format, compression)
+- [ ] Enhance video rendering pipeline
+  - [x] Create basic video rendering from 3D models
+  - [ ] Implement rendering queue system
+  - [ ] Add advanced video processing options (resolution, format, compression)
   - [ ] Support automatic voiceover generation
   - [ ] Implement subtitle and annotation systems
 - [ ] Build end-to-end training material generation
@@ -554,7 +559,7 @@ The immediate next steps are:
 2. Complete the Hunyuan3D integration with fal.ai
 3. Address the output directory linking problem
 4. Enhance the model and scene generation capabilities
-5. Begin implementing the SVG to 3D workflow
+5. Extend the SVG to Video workflow with more animation options and rendering capabilities
 
 These improvements will set the stage for the more advanced features planned in the medium and long-term phases of the roadmap.
 

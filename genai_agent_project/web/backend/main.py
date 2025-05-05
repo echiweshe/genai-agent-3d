@@ -9,9 +9,19 @@ import logging
 import asyncio
 from typing import Dict, Any, List, Optional
 
+# Setup logging
+logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
+
 # Add parent directory to path for imports
 parent_dir = os.path.abspath(os.path.join(os.path.dirname(__file__), "../.."))
 sys.path.append(parent_dir)
+
+# Add project root to Python path for imports
+project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../"))
+if project_root not in sys.path:
+    sys.path.append(project_root)
+    logger.info(f"Added project root to Python path: {project_root}")
 
 from fastapi import FastAPI, WebSocket, WebSocketDisconnect, Depends, HTTPException, status, File, UploadFile, Form, Body
 from fastapi.middleware.cors import CORSMiddleware
@@ -40,13 +50,16 @@ except ImportError as e:
     logger.warning(f"Debug routes not loaded: {e}")
     debug_router = None
 
+try:
+    from routes.svg_generator_routes import router as svg_generator_router
+    logger.info("SVG Generator routes loaded")
+except ImportError as e:
+    logger.warning(f"SVG Generator routes not loaded: {e}")
+    svg_generator_router = None
+
 # Import GenAI Agent 3D components
 from genai_agent.agent import GenAIAgent
 from genai_agent.services.redis_bus import RedisMessageBus
-
-# Setup logging
-logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
-logger = logging.getLogger(__name__)
 
 # Create FastAPI app
 app = FastAPI(
@@ -74,6 +87,9 @@ if blender_router:
 
 if debug_router:
     app.include_router(debug_router)
+    
+if svg_generator_router:
+    app.include_router(svg_generator_router)
 
 # Define models
 class InstructionRequest(BaseModel):

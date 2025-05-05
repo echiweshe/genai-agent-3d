@@ -29,36 +29,67 @@ import DiagramViewer from '../viewers/DiagramViewer';
 const DiagramsPage = ({ addNotification }) => {
   const [description, setDescription] = useState('');
   const [diagramType, setDiagramType] = useState('flowchart');
-  const [format, setFormat] = useState('mermaid');
+  const [format, setFormat] = useState('svg'); // Default to SVG for our implementation
   const [diagramName, setDiagramName] = useState('');
   const [loading, setLoading] = useState(false);
   const [diagrams, setDiagrams] = useState([]);
   const [loadingDiagrams, setLoadingDiagrams] = useState(true);
   const [viewDiagram, setViewDiagram] = useState(null);
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
+  const [llmProvider, setLlmProvider] = useState('claude-direct');
+  const [providers, setProviders] = useState([]);
+  const [loadingProviders, setLoadingProviders] = useState(false);
   
   const diagramTypes = [
     { value: 'flowchart', label: 'Flowchart' },
-    { value: 'erd', label: 'Entity Relationship Diagram' },
-    { value: 'uml', label: 'UML Class Diagram' },
-    { value: 'scene_layout', label: 'Scene Layout' },
-    { value: 'hierarchy', label: 'Object Hierarchy' }
+    { value: 'network', label: 'Network Diagram' },
+    { value: 'sequence', label: 'Sequence Diagram' },
+    { value: 'class', label: 'UML Class Diagram' },
+    { value: 'er', label: 'Entity Relationship Diagram' },
+    { value: 'mindmap', label: 'Mind Map' },
+    { value: 'general', label: 'General Diagram' }
   ];
   
   const formatOptions = [
-    { value: 'mermaid', label: 'Mermaid' },
     { value: 'svg', label: 'SVG' },
+    { value: 'mermaid', label: 'Mermaid' },
     { value: 'dot', label: 'DOT (GraphViz)' }
   ];
 
-  // Load existing diagrams when component mounts
+  // Load existing diagrams and providers when component mounts
   useEffect(() => {
-    const fetchDiagrams = async () => {
+    const fetchData = async () => {
       try {
+        // Fetch diagrams
         setLoadingDiagrams(true);
         const response = await getDiagrams();
         if (response.status === 'success' && Array.isArray(response.diagrams)) {
           setDiagrams(response.diagrams);
+        }
+        
+        // Fetch LLM providers
+        setLoadingProviders(true);
+        try {
+          const providersResponse = await fetch('/svg-generator/providers');
+          if (providersResponse.ok) {
+            const data = await providersResponse.json();
+            if (data.status === 'success' && Array.isArray(data.providers)) {
+              setProviders(data.providers);
+              
+              // Set default provider to claude-direct if available
+              const claudeDirectProvider = data.providers.find(p => p.id === 'claude-direct');
+              if (claudeDirectProvider) {
+                setLlmProvider('claude-direct');
+              } else if (data.providers.length > 0) {
+                setLlmProvider(data.providers[0].id);
+              }
+            }
+          }
+        } catch (error) {
+          console.error('Error fetching providers:', error);
+          // Don't show notification for this error as it's not critical
+        } finally {
+          setLoadingProviders(false);
         }
       } catch (error) {
         console.error('Error fetching diagrams:', error);
@@ -71,7 +102,7 @@ const DiagramsPage = ({ addNotification }) => {
       }
     };
     
-    fetchDiagrams();
+    fetchData();
   }, [addNotification]);
   
   const handleGenerateDiagram = async () => {
@@ -86,16 +117,44 @@ const DiagramsPage = ({ addNotification }) => {
     try {
       setLoading(true);
       
-      // Prepare parameters for diagram generation
-      const parameters = {
-        description,
-        diagram_type: diagramType,
-        format,
-        name: diagramName || undefined,
-      };
+      let result;
       
-      // Execute the diagram generator tool
-      const result = await executeTool('diagram_generator', parameters);
+      if (format === 'svg') {
+        // For SVG format, use our integrated SVG Generator
+        try {
+          const response = await fetch('/svg-generator/generate', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              description,
+              diagram_type: diagramType,
+              provider: llmProvider,
+              name: diagramName || undefined
+            })
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.detail || 'Failed to generate SVG');
+          }
+          
+          result = await response.json();
+        } catch (error) {
+          throw new Error(`SVG generation error: ${error.message}`);
+        }
+      } else {
+        // For other formats, use the existing diagram generator tool
+        const parameters = {
+          description,
+          diagram_type: diagramType,
+          format,
+          name: diagramName || undefined,
+        };
+        
+        result = await executeTool('diagram_generator', parameters);
+      }
       
       if (result.status === 'success') {
         // Add the diagram to the list
@@ -240,7 +299,7 @@ const DiagramsPage = ({ addNotification }) => {
             />
           </Grid>
           
-          <Grid item xs={12} sm={4}>
+          <Grid item xs={12} sm={3}>
             <FormControl fullWidth variant="outlined">
               <InputLabel>Diagram Type</InputLabel>
               <Select
@@ -258,7 +317,7 @@ const DiagramsPage = ({ addNotification }) => {
             </FormControl>
           </Grid>
           
-          <Grid item xs={12} sm={4}>
+          <Grid item xs={12} sm={3}>
             <FormControl fullWidth variant="outlined">
               <InputLabel>Format</InputLabel>
               <Select
@@ -276,7 +335,37 @@ const DiagramsPage = ({ addNotification }) => {
             </FormControl>
           </Grid>
           
-          <Grid item xs={12} sm={4}>
+          {format === 'svg' && (
+            <Grid item xs={12} sm={3}>
+              <FormControl fullWidth variant="outlined">
+                <InputLabel>LLM Provider</InputLabel>
+                <Select
+                  value={llmProvider}
+                  onChange={(e) => setLlmProvider(e.target.value)}
+                  label="LLM Provider"
+                  disabled={loading || loadingProviders}
+                >
+                  {loadingProviders ? (
+                    <MenuItem value="">
+                      <em>Loading providers...</em>
+                    </MenuItem>
+                  ) : providers.length === 0 ? (
+                    <MenuItem value="">
+                      <em>No providers available</em>
+                    </MenuItem>
+                  ) : (
+                    providers.map(provider => (
+                      <MenuItem key={provider.id} value={provider.id}>
+                        {provider.name || provider.id}
+                      </MenuItem>
+                    ))
+                  )}
+                </Select>
+              </FormControl>
+            </Grid>
+          )}
+          
+          <Grid item xs={12} sm={format === 'svg' ? 3 : 6}>
             <TextField
               label="Diagram Name (optional)"
               fullWidth

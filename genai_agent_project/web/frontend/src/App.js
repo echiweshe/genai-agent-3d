@@ -18,6 +18,7 @@ import ScenePage from './components/pages/ScenePage';
 import DiagramsPage from './components/pages/DiagramsPage';
 import SettingsPage from './components/pages/SettingsPage';
 import BlenderScriptsPage from './components/pages/BlenderScriptsPage';
+import SVGToVideoPage from './components/pages/SVGToVideoPage';
 
 // Pages Import (continued)
 import LLMTestPage from './components/pages/LLMTestPage';
@@ -234,6 +235,7 @@ function App() {
               <Route path="/scene" element={<ScenePage addNotification={addNotification} />} />
               <Route path="/diagrams" element={<DiagramsPage addNotification={addNotification} />} />
               <Route path="/blender-scripts" element={<BlenderScriptsPage addNotification={addNotification} />} />
+              <Route path="/svg-to-video" element={<SVGToVideoPage addNotification={addNotification} />} />
               <Route path="/settings" element={<SettingsPage 
                 addNotification={addNotification}
                 darkMode={darkMode}
