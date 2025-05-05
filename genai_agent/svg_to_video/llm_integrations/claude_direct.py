@@ -2,13 +2,14 @@
 Claude Direct Integration for SVG Generation
 
 This module provides a direct integration with the Anthropic Claude API
-for generating SVG diagrams from text descriptions.
+for generating SVG diagrams from text descriptions without LangChain dependency.
 """
 
 import os
 import requests
 import json
 import logging
+import time
 from typing import Dict, Any, Optional, List, Tuple
 import re
 
@@ -43,13 +44,14 @@ class ClaudeDirectSVGGenerator:
         self.model = model_name
         logger.info(f"Model set to: {model_name}")
     
-    def generate_svg(self, concept: str, style: Optional[str] = None) -> str:
+    def generate_svg(self, concept: str, style: Optional[str] = None, temperature: float = 0.2) -> str:
         """
         Generate an SVG diagram from a text description.
         
         Args:
             concept: The concept to visualize as an SVG
             style: Optional style guideline for the SVG
+            temperature: Temperature for generation (0.0 to 1.0)
             
         Returns:
             The generated SVG as a string
@@ -58,12 +60,33 @@ class ClaudeDirectSVGGenerator:
         prompt = self._create_svg_prompt(concept, style)
         
         # Call the Claude API
-        response = self._call_claude_api(prompt)
+        response = self._call_claude_api(prompt, temperature)
         
         # Extract the SVG from the response
         svg = self._extract_svg(response)
         
         return svg
+    
+    async def generate_svg_async(self, concept: str, style: Optional[str] = None, temperature: float = 0.2) -> str:
+        """
+        Generate an SVG diagram asynchronously.
+        
+        Args:
+            concept: The concept to visualize as an SVG
+            style: Optional style guideline for the SVG
+            temperature: Temperature for generation (0.0 to 1.0)
+            
+        Returns:
+            The generated SVG as a string
+        """
+        # In real async implementation, we would use aiohttp here
+        # For now, we'll just call the synchronous version
+        import asyncio
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None, 
+            lambda: self.generate_svg(concept, style, temperature)
+        )
     
     def _create_svg_prompt(self, concept: str, style: Optional[str] = None) -> str:
         """
@@ -99,12 +122,13 @@ Your response should contain ONLY the raw SVG code without any additional text, 
         
         return base_prompt
     
-    def _call_claude_api(self, prompt: str) -> Dict[str, Any]:
+    def _call_claude_api(self, prompt: str, temperature: float = 0.2) -> Dict[str, Any]:
         """
         Call the Claude API with the given prompt.
         
         Args:
             prompt: The prompt for Claude
+            temperature: Temperature for generation (0.0 to 1.0)
             
         Returns:
             The Claude API response as a dictionary
@@ -118,7 +142,7 @@ Your response should contain ONLY the raw SVG code without any additional text, 
         payload = {
             "model": self.model,
             "max_tokens": 4000,
-            "temperature": 0.2,  # Lower temperature for more consistent output
+            "temperature": temperature,
             "messages": [
                 {"role": "user", "content": prompt}
             ]
@@ -126,8 +150,11 @@ Your response should contain ONLY the raw SVG code without any additional text, 
         
         try:
             logger.info(f"Calling Claude API with model: {self.model}")
+            start_time = time.time()
             response = requests.post(self.api_url, headers=headers, json=payload, timeout=120)
             response.raise_for_status()
+            end_time = time.time()
+            logger.info(f"Claude API call completed in {end_time - start_time:.2f} seconds")
             return response.json()
         except requests.exceptions.RequestException as e:
             logger.error(f"Error calling Claude API: {e}")
@@ -188,20 +215,21 @@ Your response should contain ONLY the raw SVG code without any additional text, 
             {"id": "claude-3-haiku-20240307", "name": "Claude-3 Haiku", "description": "Fastest generation with simpler designs"}
         ]
 
+# Singleton instance
+_instance = None
 
-# Example usage
-if __name__ == "__main__":
-    # Load API key from environment
-    generator = ClaudeDirectSVGGenerator()
+def get_claude_direct() -> ClaudeDirectSVGGenerator:
+    """
+    Get the singleton instance of the Claude Direct SVG Generator.
     
-    # Example concept
-    concept = "A flowchart showing the process of user registration and authentication"
-    
-    # Generate SVG
-    svg = generator.generate_svg(concept)
-    
-    # Save to file
-    with open("output.svg", "w", encoding="utf-8") as f:
-        f.write(svg)
-    
-    print("SVG generated and saved to output.svg")
+    Returns:
+        Claude Direct SVG Generator instance
+    """
+    global _instance
+    if _instance is None:
+        try:
+            _instance = ClaudeDirectSVGGenerator()
+        except ValueError as e:
+            logger.error(f"Failed to create Claude Direct instance: {e}")
+            return None
+    return _instance

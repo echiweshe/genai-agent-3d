@@ -1,0 +1,3 @@
+@echo off
+echo Starting SVG Generator GUI...
+python svg_generator_gui.py

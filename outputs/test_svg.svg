@@ -1,7 +1,0 @@
-<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 800 600">
-  <rect x="100" y="100" width="200" height="100" fill="#f9f9f9" stroke="#333" stroke-width="2"/>
-  <rect x="500" y="100" width="200" height="100" fill="#f9f9f9" stroke="#333" stroke-width="2"/>
-  <text x="160" y="160" font-family="Arial" font-size="20" fill="#333">Box 1</text>
-  <text x="560" y="160" font-family="Arial" font-size="20" fill="#333">Box 2</text>
-  <path d="M300,150 L500,150" stroke="#333" stroke-width="2" fill="none"/>
-</svg>
