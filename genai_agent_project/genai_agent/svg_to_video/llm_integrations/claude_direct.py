@@ -34,8 +34,8 @@ class ClaudeDirectSVGGenerator:
         logger.info(f"Initialized Claude Direct SVG Generator with API key: {self.api_key[:8]}...")
         
         self.api_url = "https://api.anthropic.com/v1/messages"
-        # Use a model that is known to work well with SVG generation
-        self.model = "claude-3-opus-20240229"  # Use Claude 3 Opus for high-quality SVGs
+        # Use Claude 3.5 Sonnet for better SVG generation
+        self.model = "claude-3-5-sonnet-20240620"  # Use Claude 3.5 Sonnet for high-quality SVGs
         
         # Verify API key is set
         if not self.api_key or len(self.api_key) < 10:
@@ -107,7 +107,7 @@ class ClaudeDirectSVGGenerator:
     
     def _create_svg_prompt(self, concept: str, style: Optional[str] = None) -> str:
         """
-        Create a prompt for Claude to generate an SVG.
+        Create a more detailed prompt for Claude to generate better SVGs.
         
         Args:
             concept: The concept to visualize
@@ -120,54 +120,103 @@ class ClaudeDirectSVGGenerator:
         diagram_specific_instructions = ""
         if style and "flowchart" in style.lower():
             diagram_specific_instructions = """
-- Create a flowchart with proper flow direction (top-to-bottom or left-to-right)  
-- Use rectangles for processes, diamonds for decisions, etc.
+- Create a professional-looking flowchart with proper flow direction (top-to-bottom or left-to-right)
+- Use rectangles for processes, diamonds for decisions, oval/rounded rectangles for start/end
+- Use consistent shape sizes and spacing for a clean appearance
 - Connect shapes with arrows showing the process flow
-- Include start and end shapes
-- Add clear labels to all components and connectors
+- Use arrowheads to clearly indicate direction
+- Add clear, concise labels to all components
+- Group related elements visually
+- Use a consistent color scheme with good contrast
+- Include a title at the top of the diagram
             """
         elif style and "sequence" in style.lower():
             diagram_specific_instructions = """
-- Create a sequence diagram with actors/lifelines at the top
-- Show messages between participants with horizontal arrows
-- Use solid lines for synchronous calls, dashed for returns
-- Include activation boxes when appropriate
-- Arrange time flowing from top to bottom
+- Create a sequence diagram with actor symbols at the top
+- Use solid lines for synchronous calls, dashed for returns or async
+- Include activation boxes to show when each actor is active
+- Make the time flow from top to bottom
+- Label all messages clearly with action verbs
+- Use different colors for different actors/systems
+- Include timestamps or sequence numbers if relevant
+- Show clear relationships between components
             """
         elif style and "network" in style.lower():
             diagram_specific_instructions = """
-- Create a network diagram showing connected devices/nodes
-- Use appropriate icons or shapes for different device types
-- Show connection types with different line styles
-- Add labels for IP addresses, hostnames, or other identifiers
-- Use a logical layout that minimizes crossing lines
+- Create a comprehensive network diagram showing connected devices/components
+- Use standard network icons or appropriate symbols for different device types
+- Show proper network topology (star, mesh, bus, etc.)
+- Indicate connection types with different line styles
+- Label components with names, IP addresses, or identifiers
+- Group components by network segment or function
+- Use a logical layout that minimizes line crossings
+- Include a legend for symbol types if necessary
+            """
+        elif style and "class" in style.lower() or "uml" in style.lower():
+            diagram_specific_instructions = """
+- Create a proper UML class diagram with class boxes
+- Divide class boxes into three sections: name, attributes, methods
+- Show relationships with proper UML notation (inheritance, composition, etc.)
+- Use different arrow types for different relationships
+- Include visibility modifiers (+, -, #) for attributes and methods
+- Add multiplicity indicators where appropriate
+- Group related classes visually
+- Use a clean, professional layout
+            """
+        elif style and "entity" in style.lower() or "er" in style.lower():
+            diagram_specific_instructions = """
+- Create an entity-relationship diagram with entity boxes
+- Show relationships between entities with proper notation
+- Include cardinality/multiplicity (1-to-many, many-to-many, etc.)
+- Add primary keys and foreign keys
+- Use different colors or styles for different entity types
+- Label all relationships clearly
+- Arrange entities to minimize crossing lines
+- Include attributes in each entity
+            """
+        elif style and "mindmap" in style.lower():
+            diagram_specific_instructions = """
+- Create a hierarchical mind map with a central concept
+- Branch out related ideas in a radial pattern
+- Use colors to distinguish different branches or levels
+- Keep text concise and clear
+- Use consistent shapes for items of the same hierarchy level
+- Vary size to indicate importance or hierarchy
+- Connect related concepts across branches if needed
+- Create a visually balanced layout
             """
         
         base_prompt = f"""
-I need you to create an SVG diagram to visualize this concept:
+I need you to create a detailed, professional-quality SVG diagram to visualize this concept:
 
 {concept}
 
 Requirements:
 1. Generate ONLY valid SVG code - no explanations, markdown, or other content
 2. Use viewBox="0 0 800 600" for dimensions
-3. Include appropriate shapes, text, lines, and paths
-4. Use clear, accessible colors with good contrast
-5. Make the diagram informative and visually appealing
-6. Ensure all elements have proper positioning
-7. Use appropriate stroke and fill attributes
-8. Label all important components
-9. Use a font-family that's widely available (Arial, Helvetica, sans-serif)
+3. Create a sophisticated, visually appealing diagram that would look professional in a presentation
+4. Use a subtle, professional color palette with good contrast
+5. Include appropriate gradients, shadows, or effects for visual interest
+6. Make all text readable and properly positioned
+7. Use consistent styling for similar elements
+8. Include clear labels for all important components
+9. Use appropriate line weights and styles
+10. Ensure the diagram has a logical layout and flow
+11. Group related elements with <g> tags when appropriate
+12. Use defs/symbols for repeated elements
+13. Place elements at whole-pixel coordinates to avoid blurring
+14. Add a title element and description for accessibility
 
 {diagram_specific_instructions}
 
 Your response should contain ONLY the raw SVG code without any additional text, code blocks, or explanations.
+Make this a high-quality diagram that could be used in a professional presentation or documentation.
 """
         
         if style and not diagram_specific_instructions:
             base_prompt += f"\nAdditional style guidelines: {style}"
         
-        logger.debug(f"Created SVG prompt: {base_prompt[:200]}...")
+        logger.debug(f"Created detailed SVG prompt: {base_prompt[:200]}...")
         return base_prompt
     
     def _call_claude_api(self, prompt: str, temperature: float = 0.2) -> Dict[str, Any]:
@@ -265,6 +314,7 @@ Your response should contain ONLY the raw SVG code without any additional text, 
             A list of dictionaries containing model information
         """
         return [
+            {"id": "claude-3-5-sonnet-20240620", "name": "Claude-3.5 Sonnet", "description": "Best model for SVG diagrams with great quality and reasonable speed"},
             {"id": "claude-3-7-sonnet-20250219", "name": "Claude-3.7 Sonnet", "description": "Latest model with highest quality SVGs and reasoning capabilities"},
             {"id": "claude-3-opus-20240229", "name": "Claude-3 Opus", "description": "Highest quality SVGs with detailed elements"},
             {"id": "claude-3-sonnet-20240229", "name": "Claude-3 Sonnet", "description": "Good balance of quality and speed"},

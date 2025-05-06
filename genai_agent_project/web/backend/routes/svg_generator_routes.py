@@ -8,6 +8,7 @@ import os
 import sys
 import uuid
 import logging
+import shutil
 from typing import Dict, Any, Optional, List
 from pathlib import Path
 from fastapi import APIRouter, HTTPException, Body
@@ -387,9 +388,14 @@ async def convert_svg_to_3d(
         if not name:
             name = f"Model-{os.path.basename(full_svg_path).replace('.svg', '')}"
         
-        # Define output path
-        model_filename = f"{name.replace(' ', '_')}.blend"
+        # Define output paths
+        model_filename = f"{name.replace(' ', '_')}.obj"
         model_path = os.path.join(MODELS_OUTPUT_DIR, model_filename)
+        
+        # Also define the output path for the SVG to Video directory structure
+        svg_to_video_models_dir = os.path.join(SVG_TO_VIDEO_DIR, "models")
+        os.makedirs(svg_to_video_models_dir, exist_ok=True)
+        svg_to_video_model_path = os.path.join(svg_to_video_models_dir, model_filename)
         
         # Convert SVG to 3D
         logger.info(f"Converting SVG to 3D model: {full_svg_path} -> {model_path}")
@@ -411,9 +417,15 @@ async def convert_svg_to_3d(
                 detail="Failed to convert SVG to 3D model - check logs for details"
             )
         
-        # Verify the model file exists
-        if not os.path.exists(model_path):
-            logger.error(f"Model file not created at expected path: {model_path}")
+        # Check for the file in both possible locations
+        if os.path.exists(model_path):
+            logger.info(f"Model file created at: {model_path}")
+        elif os.path.exists(svg_to_video_model_path):
+            logger.info(f"Model file created at: {svg_to_video_model_path}")
+            # Copy the file to the expected location
+            shutil.copy(svg_to_video_model_path, model_path)
+        else:
+            logger.error(f"Model file not created at expected paths: {model_path} or {svg_to_video_model_path}")
             raise HTTPException(
                 status_code=500,
                 detail="SVG to 3D conversion did not produce a model file"

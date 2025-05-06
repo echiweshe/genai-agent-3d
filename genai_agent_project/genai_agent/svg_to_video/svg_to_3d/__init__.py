@@ -4,6 +4,7 @@ SVG to 3D conversion module.
 This module provides functionality to convert SVG files to 3D models.
 """
 
+import asyncio
 import os
 import sys
 import logging
@@ -54,9 +55,14 @@ class SVGTo3DConverter:
         self.blender_path = blender_path
         self.debug = debug
     
-    def convert_svg_to_3d(self, svg_path, output_file=None, **kwargs):
-        """Convert an SVG file to a 3D model."""
-        return convert_svg_to_3d(svg_path, output_file, **kwargs)
+    async def convert_svg_to_3d(self, svg_path, output_file=None, **kwargs):
+        """Convert an SVG file to a 3D model asynchronously."""
+        # Run the synchronous function in a thread pool
+        loop = asyncio.get_event_loop()
+        return await loop.run_in_executor(
+            None, 
+            lambda: convert_svg_to_3d(svg_path, output_file, **kwargs)
+        )
     
     def get_supported_formats(self):
         """Get a list of supported output formats."""

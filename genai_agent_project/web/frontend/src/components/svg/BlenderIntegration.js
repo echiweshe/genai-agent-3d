@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import axios from 'axios';
 import { Button, Typography, Alert, Tooltip, Box, CircularProgress } from '@mui/material';
-import { Cube, AlertTriangle, Check } from 'lucide-react';
+import { Boxes, AlertTriangle, Check } from 'lucide-react';
 
 /**
  * Component for Blender integration in the SVG to Video pipeline.
@@ -117,7 +117,7 @@ const BlenderIntegration = ({ modelPath }) => {
               color="primary"
               onClick={openInBlender}
               disabled={!modelPath || loading}
-              startIcon={loading ? <CircularProgress size={20} /> : <Cube />}
+              startIcon={loading ? <CircularProgress size={20} /> : <Boxes />}
             >
               {loading ? 'Opening...' : 'View in Blender'}
             </Button>
