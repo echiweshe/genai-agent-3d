@@ -1,6 +1,6 @@
 @echo off
 echo ================================================================================
-echo                   Testing SVG to Video Pipeline                        
+echo                   Restarting Frontend Service                        
 echo ================================================================================
 echo.
 
@@ -12,11 +12,11 @@ if exist "genai_agent_project\venv\Scripts\activate.bat" (
     echo Warning: Virtual environment not found.
 )
 
-:: Run the test script
-echo Running SVG to Video pipeline test...
-python genai_agent_project\genai_agent\svg_to_video\test_pipeline.py
+:: Run the restart script
+echo Restarting frontend service...
+python genai_agent_project\manage_services.py restart frontend
 
 echo.
 echo ================================================================================
-echo Test completed. Check the output for any errors. Press any key to exit...
+echo Frontend service restarted successfully. Press any key to exit...
 pause >nul

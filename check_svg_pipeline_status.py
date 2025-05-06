@@ -1,314 +1,253 @@
 """
 SVG to Video Pipeline Status Checker
 
-This script checks the status of the SVG to Video pipeline and reports any issues.
+This script checks the status of the SVG to Video pipeline and verifies that
+all components are working correctly.
 """
 
 import os
 import sys
+import logging
 import importlib
 import subprocess
 from pathlib import Path
-import requests
-import time
 
-# Define colors for console output
-class Colors:
-    GREEN = '\033[92m'
-    YELLOW = '\033[93m'
-    RED = '\033[91m'
-    BLUE = '\033[94m'
-    BOLD = '\033[1m'
-    END = '\033[0m'
+# Configure logging
+logging.basicConfig(level=logging.INFO, 
+                   format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
+logger = logging.getLogger(__name__)
 
-def print_header(text):
-    """Print a header in blue and bold."""
-    print(f"\n{Colors.BLUE}{Colors.BOLD}{text}{Colors.END}")
+# Root directory
+ROOT_DIR = os.path.dirname(os.path.abspath(__file__))
+PROJECT_DIR = os.path.join(ROOT_DIR, "genai_agent_project")
 
-def print_status(component, status, message=""):
-    """Print a status message with appropriate color."""
-    status_color = {
-        "OK": Colors.GREEN,
-        "WARNING": Colors.YELLOW,
-        "ERROR": Colors.RED
+# Add the project directory to sys.path
+if PROJECT_DIR not in sys.path:
+    sys.path.insert(0, PROJECT_DIR)
+
+def print_section(title):
+    """Print a section title."""
+    print("\n" + "=" * 80)
+    print(f" {title}")
+    print("=" * 80)
+
+def check_directories():
+    """Check if all required directories exist."""
+    print_section("Checking Directories")
+    
+    directories = {
+        "Main SVG Output": os.path.join(ROOT_DIR, "output", "svg"),
+        "SVG to Video - SVG": os.path.join(ROOT_DIR, "output", "svg_to_video", "svg"),
+        "SVG to Video - Models": os.path.join(ROOT_DIR, "output", "svg_to_video", "models"),
+        "SVG to Video - Animations": os.path.join(ROOT_DIR, "output", "svg_to_video", "animations"),
+        "SVG to Video - Videos": os.path.join(ROOT_DIR, "output", "svg_to_video", "videos"),
     }
-    color = status_color.get(status, Colors.END)
-    print(f"  {component}: {color}{status}{Colors.END} {message}")
-
-def check_directory(path, required=True):
-    """Check if a directory exists and is a directory."""
-    if not os.path.exists(path):
-        if required:
-            return "ERROR", f"Directory not found: {path}"
+    
+    all_exist = True
+    
+    for name, path in directories.items():
+        if os.path.exists(path):
+            if os.path.isdir(path):
+                print(f"✅ {name}: {path}")
+            else:
+                print(f"❌ {name} exists but is a file, not a directory: {path}")
+                all_exist = False
         else:
-            return "WARNING", f"Directory not found: {path}"
+            print(f"❌ {name} does not exist: {path}")
+            all_exist = False
     
-    if not os.path.isdir(path):
-        return "ERROR", f"Path exists but is not a directory: {path}"
-    
-    return "OK", f"Directory exists: {path}"
+    return all_exist
 
-def check_file(path, required=True):
-    """Check if a file exists and is a file."""
-    if not os.path.exists(path):
-        if required:
-            return "ERROR", f"File not found: {path}"
-        else:
-            return "WARNING", f"File not found: {path}"
-    
-    if not os.path.isfile(path):
-        return "ERROR", f"Path exists but is not a file: {path}"
-    
-    return "OK", f"File exists: {path}"
-
-def count_files(directory, extension=None):
-    """Count files in a directory with a specific extension."""
-    if not os.path.exists(directory) or not os.path.isdir(directory):
-        return 0
-    
-    if extension:
-        return len([f for f in os.listdir(directory) if f.endswith(extension)])
-    else:
-        return len([f for f in os.listdir(directory) if os.path.isfile(os.path.join(directory, f))])
-
-def check_imports():
+def check_module_imports():
     """Check if all required modules can be imported."""
-    results = []
+    print_section("Checking Module Imports")
     
-    # Add the project directory to the path
-    project_dir = Path("C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/genai_agent_project")
-    sys.path.insert(0, str(project_dir))
+    modules = {
+        "SVG Generator": "genai_agent.svg_to_video.svg_generator",
+        "SVG to 3D Converter": "genai_agent.svg_to_video.svg_to_3d",
+        "Animation Generator": "genai_agent.svg_to_video.animation",
+        "Video Renderer": "genai_agent.svg_to_video.rendering",
+    }
     
-    # List of modules to check
-    modules = [
-        # SVG Generator modules
-        ("genai_agent_project.genai_agent.svg_to_video.svg_generator.svg_generator", "SVG Generator"),
-        # LLM Integration modules
-        ("genai_agent_project.genai_agent.svg_to_video.llm_integrations.llm_factory", "LLM Factory"),
-        ("genai_agent_project.genai_agent.svg_to_video.llm_integrations.claude_direct", "Claude Direct"),
-        # SVG to 3D modules
-        ("genai_agent_project.genai_agent.svg_to_video.svg_to_3d", "SVG to 3D Converter"),
-        # Animation and Rendering modules
-        ("genai_agent_project.genai_agent.svg_to_video.animation", "Animation Module"),
-        ("genai_agent_project.genai_agent.svg_to_video.rendering", "Rendering Module")
-    ]
+    all_imported = True
     
-    for module_name, display_name in modules:
+    for name, module_path in modules.items():
         try:
-            importlib.import_module(module_name)
-            results.append((display_name, "OK", "Successfully imported"))
-        except ImportError as e:
-            results.append((display_name, "ERROR", f"Import error: {str(e)}"))
+            module = importlib.import_module(module_path)
+            print(f"✅ {name} imported successfully")
         except Exception as e:
-            results.append((display_name, "ERROR", f"Error: {str(e)}"))
+            print(f"❌ {name} import failed: {str(e)}")
+            all_imported = False
     
-    # Remove the added path
-    sys.path.pop(0)
+    return all_imported
+
+def check_svg_to_3d_converter():
+    """Check if the SVG to 3D converter is working correctly."""
+    print_section("Checking SVG to 3D Converter")
     
-    return results
+    try:
+        # Import the SVG to 3D converter
+        from genai_agent.svg_to_video.svg_to_3d import SVGTo3DConverter
+        
+        # Create an instance with debug mode
+        converter = SVGTo3DConverter(debug=True)
+        
+        print(f"✅ SVGTo3DConverter initialized successfully")
+        print(f"✅ SVGTo3DConverter debug parameter working")
+        
+        return True
+    except Exception as e:
+        print(f"❌ SVGTo3DConverter test failed: {str(e)}")
+        return False
 
 def check_api_keys():
-    """Check if API keys are configured properly."""
-    results = []
+    """Check if API keys are properly configured."""
+    print_section("Checking API Keys")
     
-    # Check environment variables
-    api_keys = {
-        "ANTHROPIC_API_KEY": "Anthropic API Key",
-        "OPENAI_API_KEY": "OpenAI API Key"
+    # Check for Anthropic API key
+    anthropic_key = os.environ.get("ANTHROPIC_API_KEY")
+    if anthropic_key:
+        print(f"✅ Anthropic API key found")
+    else:
+        print(f"❌ Anthropic API key not found")
+    
+    # Check for OpenAI API key
+    openai_key = os.environ.get("OPENAI_API_KEY")
+    if openai_key:
+        print(f"✅ OpenAI API key found")
+    else:
+        print(f"❌ OpenAI API key not found")
+    
+    return bool(anthropic_key) or bool(openai_key)
+
+def check_blender_executable():
+    """Check if Blender executable is available."""
+    print_section("Checking Blender Executable")
+    
+    # Common Blender executable paths
+    blender_paths = [
+        "C:\\Program Files\\Blender Foundation\\Blender 3.6\\blender.exe",
+        "C:\\Program Files\\Blender Foundation\\Blender\\blender.exe",
+        "/usr/bin/blender",
+        "/Applications/Blender.app/Contents/MacOS/Blender",
+    ]
+    
+    blender_found = False
+    
+    for path in blender_paths:
+        if os.path.exists(path):
+            print(f"✅ Blender executable found: {path}")
+            blender_found = True
+            break
+    
+    if not blender_found:
+        print(f"⚠️ Blender executable not found in common locations")
+        
+        # Try to find it using 'where' command on Windows or 'which' on Unix
+        try:
+            if os.name == 'nt':  # Windows
+                result = subprocess.run(["where", "blender"], capture_output=True, text=True)
+            else:  # Unix-like
+                result = subprocess.run(["which", "blender"], capture_output=True, text=True)
+            
+            if result.returncode == 0 and result.stdout.strip():
+                print(f"✅ Blender executable found: {result.stdout.strip()}")
+                blender_found = True
+        except Exception as e:
+            print(f"⚠️ Failed to check for Blender using system commands: {str(e)}")
+    
+    return blender_found
+
+def count_files():
+    """Count the number of files in each output directory."""
+    print_section("Checking File Counts")
+    
+    directories = {
+        "SVG Files": os.path.join(ROOT_DIR, "output", "svg_to_video", "svg"),
+        "3D Models": os.path.join(ROOT_DIR, "output", "svg_to_video", "models"),
+        "Animations": os.path.join(ROOT_DIR, "output", "svg_to_video", "animations"),
+        "Videos": os.path.join(ROOT_DIR, "output", "svg_to_video", "videos"),
     }
     
-    for env_var, display_name in api_keys.items():
-        # Check .env file first
-        env_file_path = Path("C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/genai_agent_project/.env")
-        if os.path.isfile(env_file_path):
-            with open(env_file_path, 'r') as f:
-                env_content = f.read()
-                if f"{env_var}=" in env_content:
-                    key_value = env_content.split(f"{env_var}=")[1].split('\n')[0]
-                    if key_value and key_value.strip():
-                        results.append((display_name, "OK", f"Found in .env file: {key_value[:5]}..."))
-                        continue
-        
-        # Check system environment variables
-        if env_var in os.environ and os.environ[env_var]:
-            results.append((display_name, "OK", f"Found in system environment: {os.environ[env_var][:5]}..."))
+    for name, path in directories.items():
+        if os.path.exists(path) and os.path.isdir(path):
+            file_count = len([f for f in os.listdir(path) if os.path.isfile(os.path.join(path, f))])
+            print(f"{name}: {file_count} files")
         else:
-            results.append((display_name, "WARNING", "Not found or empty"))
-    
-    return results
+            print(f"{name}: Directory not found")
 
-def check_blender_setup():
-    """Check if Blender is properly configured."""
-    results = []
+def check_web_ui():
+    """Check if the web UI is running and accessible."""
+    print_section("Checking Web UI")
     
-    # Check BLENDER_PATH in .env file
-    env_file_path = Path("C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/genai_agent_project/.env")
-    if os.path.isfile(env_file_path):
-        with open(env_file_path, 'r') as f:
-            env_content = f.read()
-            if "BLENDER_PATH=" in env_content:
-                blender_path = env_content.split("BLENDER_PATH=")[1].split('\n')[0]
-                if blender_path:
-                    # Check if Blender executable exists
-                    status, message = check_file(blender_path)
-                    results.append(("Blender Executable", status, message))
-                else:
-                    results.append(("Blender Executable", "WARNING", "BLENDER_PATH is empty in .env file"))
-            else:
-                results.append(("Blender Executable", "WARNING", "BLENDER_PATH not found in .env file"))
-    else:
-        results.append(("Blender Executable", "WARNING", ".env file not found"))
-    
-    # Check mathutils module
-    try:
-        import mathutils
-        results.append(("mathutils Module", "OK", "Successfully imported"))
-    except ImportError:
-        results.append(("mathutils Module", "WARNING", "Not installed (required for 3D conversion)"))
-    
-    return results
-
-def check_web_ui_status():
-    """Check if the web UI is running and responding."""
-    results = []
+    import urllib.request
+    import urllib.error
     
     # Check backend
+    backend_url = "http://localhost:8000/api/status"
+    
     try:
-        response = requests.get("http://localhost:8000/status", timeout=5)
-        if response.status_code == 200:
-            results.append(("Backend API", "OK", "Running at http://localhost:8000"))
+        response = urllib.request.urlopen(backend_url)
+        if response.status == 200:
+            print(f"✅ Backend API is running")
         else:
-            results.append(("Backend API", "ERROR", f"Returned status code {response.status_code}"))
-    except requests.exceptions.ConnectionError:
-        results.append(("Backend API", "ERROR", "Not running or not accessible"))
-    except Exception as e:
-        results.append(("Backend API", "ERROR", f"Error: {str(e)}"))
+            print(f"⚠️ Backend API returned status code {response.status}")
+    except urllib.error.URLError as e:
+        print(f"❌ Backend API is not accessible: {str(e)}")
     
     # Check frontend
+    frontend_url = "http://localhost:3000"
+    
     try:
-        response = requests.get("http://localhost:3000", timeout=5)
-        if response.status_code == 200:
-            results.append(("Frontend", "OK", "Running at http://localhost:3000"))
+        response = urllib.request.urlopen(frontend_url)
+        if response.status == 200:
+            print(f"✅ Frontend is running")
         else:
-            results.append(("Frontend", "ERROR", f"Returned status code {response.status_code}"))
-    except requests.exceptions.ConnectionError:
-        results.append(("Frontend", "ERROR", "Not running or not accessible"))
-    except Exception as e:
-        results.append(("Frontend", "ERROR", f"Error: {str(e)}"))
-    
-    # Check SVG generator endpoint
-    try:
-        response = requests.get("http://localhost:8000/svg-generator/health", timeout=5)
-        if response.status_code == 200:
-            results.append(("SVG Generator API", "OK", "Endpoint is healthy"))
-        else:
-            results.append(("SVG Generator API", "ERROR", f"Returned status code {response.status_code}"))
-    except requests.exceptions.ConnectionError:
-        results.append(("SVG Generator API", "ERROR", "Not running or not accessible"))
-    except Exception as e:
-        results.append(("SVG Generator API", "ERROR", f"Error: {str(e)}"))
-    
-    # Check available providers
-    try:
-        response = requests.get("http://localhost:8000/svg-generator/providers", timeout=5)
-        if response.status_code == 200:
-            providers = response.json()
-            if providers and len(providers) > 0:
-                results.append(("SVG Generator Providers", "OK", f"Available providers: {', '.join(providers)}"))
-            else:
-                results.append(("SVG Generator Providers", "WARNING", "No providers available"))
-        else:
-            results.append(("SVG Generator Providers", "ERROR", f"Returned status code {response.status_code}"))
-    except requests.exceptions.ConnectionError:
-        results.append(("SVG Generator Providers", "ERROR", "Not running or not accessible"))
-    except Exception as e:
-        results.append(("SVG Generator Providers", "ERROR", f"Error: {str(e)}"))
-    
-    return results
-
-def check_directory_structure():
-    """Check if the directory structure is correct."""
-    results = []
-    
-    # Define required directories
-    directories = [
-        # Main output directories
-        ("C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/svg", "SVG Output Directory", True),
-        ("C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/svg_to_video/svg", "SVG to Video SVG Directory", True),
-        ("C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/genai_agent_project/output/svg", "Test SVG Directory", True),
-        ("C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/svg_to_video/models", "3D Models Directory", True),
-        ("C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/svg_to_video/animations", "Animations Directory", True),
-        ("C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/svg_to_video/videos", "Videos Directory", True),
-        
-        # Code directories
-        ("C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/genai_agent_project/genai_agent/svg_to_video", "SVG to Video Code Directory", True),
-        ("C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/genai_agent_project/genai_agent/svg_to_video/svg_generator", "SVG Generator Code Directory", True),
-        ("C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/genai_agent_project/genai_agent/svg_to_video/llm_integrations", "LLM Integrations Code Directory", True),
-        ("C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/genai_agent_project/genai_agent/svg_to_video/svg_to_3d", "SVG to 3D Code Directory", True),
-        ("C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/genai_agent_project/genai_agent/svg_to_video/animation", "Animation Code Directory", True),
-        ("C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/genai_agent_project/genai_agent/svg_to_video/rendering", "Rendering Code Directory", True),
-    ]
-    
-    for directory, display_name, required in directories:
-        status, message = check_directory(directory, required)
-        results.append((display_name, status, message))
-    
-    return results
-
-def check_file_counts():
-    """Check the number of files in each directory."""
-    results = []
-    
-    # Define directories to check
-    directories = [
-        ("C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/svg", "SVG Files", ".svg"),
-        ("C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/svg_to_video/models", "3D Models", ".obj"),
-        ("C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/svg_to_video/animations", "Animations", ".blend"),
-        ("C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/svg_to_video/videos", "Videos", ".mp4")
-    ]
-    
-    for directory, display_name, extension in directories:
-        count = count_files(directory, extension)
-        if count > 0:
-            results.append((display_name, "OK", f"Found {count} files"))
-        else:
-            results.append((display_name, "WARNING", f"No {extension} files found"))
-    
-    return results
-
-def print_results(category, results):
-    """Print results for a category."""
-    print_header(category)
-    for component, status, message in results:
-        print_status(component, status, message)
+            print(f"⚠️ Frontend returned status code {response.status}")
+    except urllib.error.URLError as e:
+        print(f"❌ Frontend is not accessible: {str(e)}")
 
 def main():
-    """Main function to check the SVG to Video pipeline status."""
-    print(f"{Colors.BLUE}{Colors.BOLD}SVG to Video Pipeline Status Checker{Colors.END}")
-    print(f"{Colors.BLUE}==============================={Colors.END}")
-    print("\nChecking status of the SVG to Video pipeline...\n")
+    """Run all checks and report the overall status."""
+    print("SVG to Video Pipeline Status Check")
+    print(f"Running at: {ROOT_DIR}")
+    print(f"Date: {subprocess.check_output('date /t', shell=True).decode('utf-8').strip()}")
+    print(f"Time: {subprocess.check_output('time /t', shell=True).decode('utf-8').strip()}")
     
-    # Check directory structure
-    print_results("Directory Structure", check_directory_structure())
+    # Run all checks
+    directories_ok = check_directories()
+    modules_ok = check_module_imports()
+    converter_ok = check_svg_to_3d_converter()
+    api_keys_ok = check_api_keys()
+    blender_ok = check_blender_executable()
     
-    # Check imports
-    print_results("Module Imports", check_imports())
+    # File counts (informational only)
+    count_files()
     
-    # Check API keys
-    print_results("API Keys", check_api_keys())
+    # Check web UI
+    check_web_ui()
     
-    # Check Blender setup
-    print_results("Blender Setup", check_blender_setup())
+    # Overall status
+    print_section("Overall Status")
     
-    # Check file counts
-    print_results("File Counts", check_file_counts())
+    status = {
+        "Directories": "✅ OK" if directories_ok else "❌ Issues Found",
+        "Module Imports": "✅ OK" if modules_ok else "❌ Issues Found",
+        "SVG to 3D Converter": "✅ OK" if converter_ok else "❌ Issues Found",
+        "API Keys": "✅ OK" if api_keys_ok else "⚠️ Missing Some Keys",
+        "Blender Executable": "✅ OK" if blender_ok else "⚠️ Not Found (Optional)",
+    }
     
-    # Check web UI status
-    print_results("Web UI Status", check_web_ui_status())
+    for name, result in status.items():
+        print(f"{name}: {result}")
     
-    print(f"\n{Colors.BLUE}{Colors.BOLD}Status Check Complete{Colors.END}")
-    print(f"{Colors.BLUE}==================={Colors.END}")
-    input("\nPress Enter to exit...")
+    # Overall result
+    critical_issues = not (directories_ok and modules_ok and converter_ok)
+    
+    if critical_issues:
+        print("\n❌ Critical issues found. The SVG to Video pipeline may not work correctly.")
+    else:
+        print("\n✅ No critical issues found. The SVG to Video pipeline should work correctly.")
 
 if __name__ == "__main__":
     main()

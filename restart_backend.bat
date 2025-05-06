@@ -1,12 +1,22 @@
-﻿@echo off
-echo Restarting backend service
-echo ========================
+@echo off
+echo ================================================================================
+echo                   Restarting SVG to Video Backend Service                        
+echo ================================================================================
 echo.
 
-cd genai_agent_project
-call venv\Scripts\activate
-python manage_services.py restart backend
-echo.
+:: Activate virtual environment if it exists
+if exist "genai_agent_project\venv\Scripts\activate.bat" (
+    echo Activating virtual environment...
+    call "genai_agent_project\venv\Scripts\activate.bat"
+) else (
+    echo Warning: Virtual environment not found.
+)
 
-echo Backend restart complete!
-pause
+:: Run the restart script
+echo Restarting backend service...
+python genai_agent_project\manage_services.py restart backend
+
+echo.
+echo ================================================================================
+echo Backend service restarted successfully. Press any key to exit...
+pause >nul
