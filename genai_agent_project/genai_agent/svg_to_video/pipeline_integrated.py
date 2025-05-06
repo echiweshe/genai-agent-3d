@@ -1,392 +1,474 @@
 """
-SVG to Video Pipeline Integrated
+Integrated SVG to Video Pipeline.
 
-This module provides an integrated pipeline for converting text descriptions
-to SVG diagrams, then to 3D models, and finally to animated videos.
-It uses the project's shared services and configuration.
+This module provides an integrated pipeline that combines all steps of
+the SVG to Video process: SVG generation, 3D conversion, animation,
+and rendering.
 """
 
 import os
-import asyncio
+import sys
 import logging
-import uuid
-from typing import Dict, Any, Optional, Tuple
+import tempfile
+import subprocess
 from pathlib import Path
 
-from .svg_generator.svg_generator import SVGGenerator
+# Import pipeline components
+from .svg_generator import SVGGenerator
 from .svg_to_3d import SVGTo3DConverter
-from .animation.animation_system import AnimationSystem
+from .animation.model_animator import ModelAnimator
 from .rendering.video_renderer import VideoRenderer
 
+# Configure logging
 logger = logging.getLogger(__name__)
 
 class SVGToVideoPipeline:
     """
-    Pipeline for converting text descriptions to animated videos.
-    Uses the project's integrated services and configuration.
+    Integrated pipeline for SVG to Video conversion.
+    
+    This class orchestrates the entire pipeline from SVG generation to
+    video rendering, providing a seamless way to generate videos from
+    text descriptions.
     """
     
-    def __init__(self, debug=False):
+    def __init__(self, blender_path=None, output_dir=None):
         """
         Initialize the SVG to Video pipeline.
         
         Args:
-            debug: Enable debug logging
+            blender_path (str, optional): Path to the Blender executable.
+                If not provided, it will try to get it from the environment.
+            output_dir (str, optional): Directory for output files.
+                If not provided, it will use the default output directory.
         """
-        self.debug = debug
+        # Get Blender path
+        self.blender_path = blender_path
         
-        # Initialize output directories from environment or use defaults
-        base_output_dir = os.environ.get("OUTPUT_DIR", "output")
-        self.svg_output_dir = os.path.join(base_output_dir, "svg")
-        self.model_output_dir = os.path.join(base_output_dir, "models")
-        self.animation_output_dir = os.path.join(base_output_dir, "animations")
-        self.video_output_dir = os.path.join(base_output_dir, "videos")
+        if not self.blender_path:
+            # Try to get from environment
+            self.blender_path = os.environ.get("BLENDER_PATH")
         
-        # Create output directories if they don't exist
-        for directory in [self.svg_output_dir, self.model_output_dir, 
-                         self.animation_output_dir, self.video_output_dir]:
+        # Set output directory
+        self.output_dir = output_dir
+        
+        if not self.output_dir:
+            # Use default output directory
+            base_dir = Path(__file__).resolve().parent.parent.parent
+            self.output_dir = os.path.join(base_dir, "output", "svg_to_video")
+            
+            # Ensure output directory exists
+            os.makedirs(self.output_dir, exist_ok=True)
+        
+        # Initialize pipeline components
+        self.svg_generator = SVGGenerator()
+        self.svg_to_3d_converter = SVGTo3DConverter(blender_path=self.blender_path)
+        self.model_animator = ModelAnimator(blender_path=self.blender_path)
+        self.video_renderer = VideoRenderer(blender_path=self.blender_path)
+        
+        # Set up output subdirectories
+        self.svg_dir = os.path.join(self.output_dir, "svg")
+        self.models_dir = os.path.join(self.output_dir, "models")
+        self.animations_dir = os.path.join(self.output_dir, "animations")
+        self.videos_dir = os.path.join(self.output_dir, "videos")
+        
+        # Create subdirectories if they don't exist
+        for directory in [self.svg_dir, self.models_dir, self.animations_dir, self.videos_dir]:
             os.makedirs(directory, exist_ok=True)
-        
-        # Initialize components
-        self.svg_generator = SVGGenerator(debug=debug)
-        self.svg_to_3d_converter = SVGTo3DConverter(debug=debug)
-        self.animation_system = AnimationSystem(debug=debug)
-        self.video_renderer = VideoRenderer(debug=debug)
-        
-        # Flag to track initialization
-        self._initialized = False
-        
-        if self.debug:
-            logger.info("SVG to Video pipeline initialized")
     
-    async def initialize(self):
-        """Initialize the pipeline components."""
-        if self._initialized:
-            return
-        
-        # Initialize the SVG Generator
-        await self.svg_generator.initialize()
-        
-        # Set the flag
-        self._initialized = True
-        
-        if self.debug:
-            logger.info("SVG to Video pipeline fully initialized")
-            providers = self.svg_generator.get_available_providers()
-            logger.info(f"Available LLM providers: {providers}")
-    
-    async def generate_video_from_description(
-        self, 
-        description: str, 
-        provider: str = None,
-        diagram_type: str = None,
-        animation_type: str = None,
-        render_quality: str = "medium",
-        duration: int = 10
-    ) -> Dict[str, str]:
+    def generate_video(self, description, diagram_type="flowchart", name=None, provider=None, 
+                      animation_type="simple", video_quality="medium", 
+                      duration=10.0, video_format="MP4", **kwargs):
         """
         Generate a video from a text description.
         
+        This method orchestrates the entire pipeline:
+        1. Generate SVG from description
+        2. Convert SVG to 3D model
+        3. Animate the 3D model
+        4. Render the animation to video
+        
         Args:
-            description: Text description of the diagram/scene
-            provider: LLM provider to use (claude, openai, ollama)
-            diagram_type: Type of diagram (flowchart, network, etc.)
-            animation_type: Type of animation to apply
-            render_quality: Rendering quality (low, medium, high)
-            duration: Animation duration in seconds
-            
+            description (str): Text description of the diagram
+            diagram_type (str, optional): Type of diagram to generate
+            name (str, optional): Name for the generated files
+            provider (str, optional): LLM provider for SVG generation
+            animation_type (str, optional): Type of animation
+            video_quality (str, optional): Quality of video rendering
+            duration (float, optional): Duration of the video in seconds
+            video_format (str, optional): Format of the output video
+            **kwargs: Additional parameters for each step
+        
         Returns:
-            Dictionary with paths to generated files:
-            {
-                "svg": path to SVG file,
-                "model": path to 3D model file,
-                "animation": path to animated model file,
-                "video": path to rendered video file
-            }
+            dict: Dictionary with paths to all generated files and status
         """
+        result = {
+            "status": "in_progress",
+            "steps": {
+                "svg_generation": {"status": "pending"},
+                "svg_to_3d": {"status": "pending"},
+                "animation": {"status": "pending"},
+                "rendering": {"status": "pending"}
+            },
+            "files": {},
+            "error": None
+        }
+        
         try:
-            # Ensure the pipeline is initialized
-            if not self._initialized:
-                await self.initialize()
-            
             # Step 1: Generate SVG
             logger.info(f"Generating SVG from description: {description[:50]}...")
-            svg_content = await self.svg_generator.generate_svg(
-                concept=description,
+            svg_result = self.svg_generator.generate_svg(
+                description, 
+                diagram_type=diagram_type,
+                name=name,
                 provider=provider,
-                diagram_type=diagram_type
+                **kwargs.get("svg_options", {})
             )
             
-            # Generate a unique ID for this job
-            job_id = str(uuid.uuid4())
+            if not svg_result or svg_result.get("status") != "success":
+                error_msg = "SVG generation failed"
+                if svg_result and svg_result.get("error"):
+                    error_msg += f": {svg_result['error']}"
+                
+                result["status"] = "error"
+                result["error"] = error_msg
+                result["steps"]["svg_generation"]["status"] = "error"
+                result["steps"]["svg_generation"]["error"] = error_msg
+                return result
             
-            # Save SVG file
-            svg_filename = f"{job_id}.svg"
-            svg_path = os.path.join(self.svg_output_dir, svg_filename)
-            with open(svg_path, "w", encoding="utf-8") as f:
-                f.write(svg_content)
+            # Update result with SVG information
+            result["steps"]["svg_generation"]["status"] = "success"
+            result["files"]["svg_path"] = svg_result["file_path"]
+            result["files"]["svg_code"] = svg_result["code"]
             
-            if self.debug:
-                logger.info(f"SVG saved to {svg_path}")
+            svg_path = svg_result["file_path"]
             
-            # Step 2: Convert SVG to 3D model
-            logger.info("Converting SVG to 3D model...")
-            model_filename = f"{job_id}.blend"
-            model_path = os.path.join(self.model_output_dir, model_filename)
+            # Step 2: Convert SVG to 3D
+            logger.info(f"Converting SVG to 3D: {svg_path}...")
             
-            conversion_result = await self.svg_to_3d_converter.convert_svg_to_3d(
-                svg_path=svg_path,
-                output_path=model_path
+            # Generate output path for 3D model
+            svg_name = os.path.basename(svg_path)
+            model_name = f"{os.path.splitext(svg_name)[0]}_3d.obj"
+            model_path = os.path.join(self.models_dir, model_name)
+            
+            # Convert SVG to 3D
+            model_path = self.svg_to_3d_converter.convert_svg_to_3d(
+                svg_path, 
+                output_file=model_path,
+                **kwargs.get("model_options", {})
             )
             
-            if not conversion_result:
-                raise RuntimeError("Failed to convert SVG to 3D model")
+            if not model_path:
+                error_msg = "SVG to 3D conversion failed"
+                result["status"] = "error"
+                result["error"] = error_msg
+                result["steps"]["svg_to_3d"]["status"] = "error"
+                result["steps"]["svg_to_3d"]["error"] = error_msg
+                return result
             
-            if self.debug:
-                logger.info(f"3D model saved to {model_path}")
+            # Update result with 3D model information
+            result["steps"]["svg_to_3d"]["status"] = "success"
+            result["files"]["model_path"] = model_path
             
-            # Step 3: Add animation to the 3D model
-            logger.info("Adding animation to 3D model...")
-            animation_filename = f"{job_id}_animated.blend"
-            animation_path = os.path.join(self.animation_output_dir, animation_filename)
+            # Step 3: Animate the 3D model
+            logger.info(f"Animating 3D model: {model_path}...")
             
-            animation_result = await self.animation_system.animate_model(
-                model_path=model_path,
-                output_path=animation_path,
-                animation_type=animation_type or self._detect_animation_type(diagram_type),
-                duration=duration
+            # Generate output path for animated model
+            animated_model_name = f"{os.path.splitext(svg_name)[0]}_animated.blend"
+            animated_model_path = os.path.join(self.animations_dir, animated_model_name)
+            
+            # Animate the model
+            animated_model_path = self.model_animator.animate_model(
+                model_path,
+                output_path=animated_model_path,
+                animation_type=animation_type,
+                duration=duration,
+                **kwargs.get("animation_options", {})
             )
             
-            if not animation_result:
-                raise RuntimeError("Failed to animate 3D model")
+            if not animated_model_path:
+                error_msg = "Model animation failed"
+                result["status"] = "error"
+                result["error"] = error_msg
+                result["steps"]["animation"]["status"] = "error"
+                result["steps"]["animation"]["error"] = error_msg
+                return result
             
-            if self.debug:
-                logger.info(f"Animated model saved to {animation_path}")
+            # Update result with animated model information
+            result["steps"]["animation"]["status"] = "success"
+            result["files"]["animated_model_path"] = animated_model_path
             
             # Step 4: Render the animation to video
-            logger.info("Rendering animation to video...")
-            video_filename = f"{job_id}.mp4"
-            video_path = os.path.join(self.video_output_dir, video_filename)
+            logger.info(f"Rendering animation to video: {animated_model_path}...")
             
-            render_result = await self.video_renderer.render_video(
-                animation_path=animation_path,
+            # Generate output path for video
+            video_name = f"{os.path.splitext(svg_name)[0]}_video.{video_format.lower()}"
+            video_path = os.path.join(self.videos_dir, video_name)
+            
+            # Render the video
+            video_path = self.video_renderer.render_video(
+                animated_model_path,
                 output_path=video_path,
-                quality=render_quality,
-                fps=30
+                quality=video_quality,
+                duration=duration,
+                output_format=video_format,
+                **kwargs.get("render_options", {})
             )
             
-            if not render_result:
-                raise RuntimeError("Failed to render video")
+            if not video_path:
+                error_msg = "Video rendering failed"
+                result["status"] = "error"
+                result["error"] = error_msg
+                result["steps"]["rendering"]["status"] = "error"
+                result["steps"]["rendering"]["error"] = error_msg
+                return result
             
-            logger.info(f"Video rendered to {video_path}")
+            # Update result with video information
+            result["steps"]["rendering"]["status"] = "success"
+            result["files"]["video_path"] = video_path
             
-            # Return paths to generated files
-            return {
-                "svg": svg_path,
-                "model": model_path,
-                "animation": animation_path,
-                "video": video_path
+            # Successfully completed all steps
+            result["status"] = "success"
+            
+            # Add final output information
+            result["output"] = {
+                "video_path": video_path,
+                "video_name": video_name,
+                "duration": duration,
+                "format": video_format
             }
+            
+            return result
         
         except Exception as e:
             logger.error(f"Error in SVG to Video pipeline: {str(e)}")
-            raise
+            result["status"] = "error"
+            result["error"] = str(e)
+            return result
     
-    async def generate_svg_only(
-        self,
-        description: str,
-        provider: str = None,
-        diagram_type: str = None
-    ) -> Tuple[str, str]:
+    def generate_svg_only(self, description, diagram_type="flowchart", name=None, provider=None, **kwargs):
         """
-        Generate only an SVG diagram from a text description.
+        Generate an SVG from a text description.
+        
+        This method runs only the SVG generation step of the pipeline.
         
         Args:
-            description: Text description of the diagram
-            provider: LLM provider to use
-            diagram_type: Type of diagram
-            
+            description (str): Text description of the diagram
+            diagram_type (str, optional): Type of diagram to generate
+            name (str, optional): Name for the generated files
+            provider (str, optional): LLM provider for SVG generation
+            **kwargs: Additional parameters for SVG generation
+        
         Returns:
-            Tuple of (svg_content, svg_path)
+            dict: Result of SVG generation
         """
         try:
-            # Ensure the pipeline is initialized
-            if not self._initialized:
-                await self.initialize()
-            
             # Generate SVG
-            svg_content = await self.svg_generator.generate_svg(
-                concept=description,
+            svg_result = self.svg_generator.generate_svg(
+                description, 
+                diagram_type=diagram_type,
+                name=name,
                 provider=provider,
-                diagram_type=diagram_type
+                **kwargs
             )
             
-            # Save SVG file
-            svg_filename = f"{str(uuid.uuid4())}.svg"
-            svg_path = os.path.join(self.svg_output_dir, svg_filename)
-            with open(svg_path, "w", encoding="utf-8") as f:
-                f.write(svg_content)
-            
-            return svg_content, svg_path
+            return svg_result
         
         except Exception as e:
-            logger.error(f"Error generating SVG: {str(e)}")
-            raise
+            logger.error(f"Error in SVG generation: {str(e)}")
+            return {
+                "status": "error",
+                "error": str(e)
+            }
     
-    async def convert_svg_to_video(
-        self,
-        svg_path: str,
-        animation_type: str = None,
-        render_quality: str = "medium",
-        duration: int = 10
-    ) -> Dict[str, str]:
+    def convert_svg_to_3d_only(self, svg_path, output_path=None, **kwargs):
         """
-        Convert an existing SVG file to a video.
+        Convert an SVG to a 3D model.
+        
+        This method runs only the SVG to 3D conversion step of the pipeline.
         
         Args:
-            svg_path: Path to SVG file
-            animation_type: Type of animation to apply
-            render_quality: Rendering quality
-            duration: Animation duration in seconds
-            
+            svg_path (str): Path to the input SVG file
+            output_path (str, optional): Path to save the output 3D model
+            **kwargs: Additional parameters for SVG to 3D conversion
+        
         Returns:
-            Dictionary with paths to generated files
+            dict: Result of SVG to 3D conversion
         """
         try:
-            # Ensure the pipeline is initialized
-            if not self._initialized:
-                await self.initialize()
+            # If output path is not provided, generate one
+            if not output_path:
+                svg_name = os.path.basename(svg_path)
+                model_name = f"{os.path.splitext(svg_name)[0]}_3d.obj"
+                output_path = os.path.join(self.models_dir, model_name)
             
-            # Generate a unique ID for this job
-            job_id = str(uuid.uuid4())
-            
-            # Step 1: Convert SVG to 3D model
-            logger.info(f"Converting SVG to 3D model: {svg_path}")
-            model_filename = f"{job_id}.blend"
-            model_path = os.path.join(self.model_output_dir, model_filename)
-            
-            conversion_result = await self.svg_to_3d_converter.convert_svg_to_3d(
-                svg_path=svg_path,
-                output_path=model_path
+            # Convert SVG to 3D
+            model_path = self.svg_to_3d_converter.convert_svg_to_3d(
+                svg_path, 
+                output_file=output_path,
+                **kwargs
             )
             
-            if not conversion_result:
-                raise RuntimeError("Failed to convert SVG to 3D model")
+            if not model_path:
+                return {
+                    "status": "error",
+                    "error": "SVG to 3D conversion failed"
+                }
             
-            # Step 2: Add animation to the 3D model
-            logger.info("Adding animation to 3D model...")
-            animation_filename = f"{job_id}_animated.blend"
-            animation_path = os.path.join(self.animation_output_dir, animation_filename)
-            
-            # Detect animation type if not specified
-            if not animation_type:
-                animation_type = self._detect_animation_type_from_svg(svg_path)
-            
-            animation_result = await self.animation_system.animate_model(
-                model_path=model_path,
-                output_path=animation_path,
-                animation_type=animation_type,
-                duration=duration
-            )
-            
-            if not animation_result:
-                raise RuntimeError("Failed to animate 3D model")
-            
-            # Step 3: Render the animation to video
-            logger.info("Rendering animation to video...")
-            video_filename = f"{job_id}.mp4"
-            video_path = os.path.join(self.video_output_dir, video_filename)
-            
-            render_result = await self.video_renderer.render_video(
-                animation_path=animation_path,
-                output_path=video_path,
-                quality=render_quality,
-                fps=30
-            )
-            
-            if not render_result:
-                raise RuntimeError("Failed to render video")
-            
-            # Return paths to generated files
             return {
-                "svg": svg_path,
-                "model": model_path,
-                "animation": animation_path,
-                "video": video_path
+                "status": "success",
+                "model_path": model_path,
+                "message": "SVG converted to 3D model successfully"
             }
         
         except Exception as e:
-            logger.error(f"Error converting SVG to video: {str(e)}")
-            raise
+            logger.error(f"Error in SVG to 3D conversion: {str(e)}")
+            return {
+                "status": "error",
+                "error": str(e)
+            }
     
-    def _detect_animation_type(self, diagram_type: Optional[str]) -> str:
+    def animate_model_only(self, model_path, output_path=None, animation_type="simple", duration=10.0, **kwargs):
         """
-        Detect the appropriate animation type based on diagram type.
+        Animate a 3D model.
+        
+        This method runs only the animation step of the pipeline.
         
         Args:
-            diagram_type: Type of diagram
-            
+            model_path (str): Path to the input 3D model file
+            output_path (str, optional): Path to save the animated model
+            animation_type (str, optional): Type of animation
+            duration (float, optional): Duration of the animation in seconds
+            **kwargs: Additional parameters for animation
+        
         Returns:
-            Animation type (standard, flowchart, network)
-        """
-        if not diagram_type:
-            return "standard"
-        
-        diagram_type = diagram_type.lower()
-        if diagram_type == "flowchart":
-            return "flowchart"
-        elif diagram_type == "network":
-            return "network"
-        elif diagram_type == "sequence":
-            return "sequence"
-        
-        return "standard"
-    
-    def _detect_animation_type_from_svg(self, svg_path: str) -> str:
-        """
-        Analyze an SVG file to detect the appropriate animation type.
-        
-        Args:
-            svg_path: Path to SVG file
-            
-        Returns:
-            Animation type (standard, flowchart, network)
+            dict: Result of model animation
         """
         try:
-            # Read SVG file
-            with open(svg_path, "r", encoding="utf-8") as f:
-                svg_content = f.read()
+            # If output path is not provided, generate one
+            if not output_path:
+                model_name = os.path.basename(model_path)
+                animated_model_name = f"{os.path.splitext(model_name)[0]}_animated.blend"
+                output_path = os.path.join(self.animations_dir, animated_model_name)
             
-            # Simple heuristics for diagram type detection
+            # Animate the model
+            animated_model_path = self.model_animator.animate_model(
+                model_path,
+                output_path=output_path,
+                animation_type=animation_type,
+                duration=duration,
+                **kwargs
+            )
             
-            # Check for flowchart elements (rectangles, diamonds, arrows)
-            rectangle_count = svg_content.count("<rect")
-            diamond_pattern = svg_content.count("transform=\"rotate(45")
-            arrow_count = svg_content.count("<marker")
+            if not animated_model_path:
+                return {
+                    "status": "error",
+                    "error": "Model animation failed"
+                }
             
-            # Check for network elements (circles, lines)
-            circle_count = svg_content.count("<circle")
-            line_count = svg_content.count("<line")
-            
-            # Check for sequence diagram patterns
-            sequence_patterns = [
-                "->", "-->", "<-", "<--",  # Arrow patterns
-                "actor", "participant",     # Common sequence diagram terms
-                "lifeline"                  # Another sequence diagram term
-            ]
-            sequence_matches = sum(1 for pattern in sequence_patterns if pattern in svg_content.lower())
-            
-            # Determine diagram type based on element counts
-            if (rectangle_count > 5 and arrow_count > 3) or diamond_pattern > 1:
-                return "flowchart"
-            elif circle_count > 5 and line_count > 5:
-                return "network"
-            elif sequence_matches > 2:
-                return "sequence"
-            
-            # Default to standard animation
-            return "standard"
+            return {
+                "status": "success",
+                "animated_model_path": animated_model_path,
+                "message": "3D model animated successfully"
+            }
         
         except Exception as e:
-            logger.warning(f"Error detecting animation type: {str(e)}")
-            return "standard"  # Default to standard animation on error
+            logger.error(f"Error in model animation: {str(e)}")
+            return {
+                "status": "error",
+                "error": str(e)
+            }
+    
+    def render_video_only(self, animated_model_path, output_path=None, quality="medium", duration=10.0, video_format="MP4", **kwargs):
+        """
+        Render an animated model to video.
+        
+        This method runs only the rendering step of the pipeline.
+        
+        Args:
+            animated_model_path (str): Path to the input animated model file
+            output_path (str, optional): Path to save the output video
+            quality (str, optional): Quality of video rendering
+            duration (float, optional): Duration of the video in seconds
+            video_format (str, optional): Format of the output video
+            **kwargs: Additional parameters for rendering
+        
+        Returns:
+            dict: Result of video rendering
+        """
+        try:
+            # If output path is not provided, generate one
+            if not output_path:
+                model_name = os.path.basename(animated_model_path)
+                video_name = f"{os.path.splitext(model_name)[0]}_video.{video_format.lower()}"
+                output_path = os.path.join(self.videos_dir, video_name)
+            
+            # Render the video
+            video_path = self.video_renderer.render_video(
+                animated_model_path,
+                output_path=output_path,
+                quality=quality,
+                duration=duration,
+                output_format=video_format,
+                **kwargs
+            )
+            
+            if not video_path:
+                return {
+                    "status": "error",
+                    "error": "Video rendering failed"
+                }
+            
+            return {
+                "status": "success",
+                "video_path": video_path,
+                "message": "Animation rendered to video successfully"
+            }
+        
+        except Exception as e:
+            logger.error(f"Error in video rendering: {str(e)}")
+            return {
+                "status": "error",
+                "error": str(e)
+            }
+    
+    def get_pipeline_status(self):
+        """
+        Get status information about the SVG to Video pipeline.
+        
+        Returns:
+            dict: Status information including available components
+        """
+        # Check if Blender is available
+        blender_available = False
+        if self.blender_path and os.path.exists(self.blender_path):
+            blender_available = True
+        
+        # Check output directories
+        directories_status = {
+            "svg_dir": os.path.exists(self.svg_dir) and os.path.isdir(self.svg_dir),
+            "models_dir": os.path.exists(self.models_dir) and os.path.isdir(self.models_dir),
+            "animations_dir": os.path.exists(self.animations_dir) and os.path.isdir(self.animations_dir),
+            "videos_dir": os.path.exists(self.videos_dir) and os.path.isdir(self.videos_dir)
+        }
+        
+        # Check if all pipeline components are available
+        svg_generator_available = hasattr(self, 'svg_generator')
+        svg_to_3d_available = hasattr(self, 'svg_to_3d_converter') and blender_available
+        animation_available = hasattr(self, 'model_animator') and blender_available
+        rendering_available = hasattr(self, 'video_renderer') and blender_available
+        
+        return {
+            "status": "available" if all([svg_generator_available, svg_to_3d_available, animation_available, rendering_available]) else "partial",
+            "components": {
+                "svg_generator": svg_generator_available,
+                "svg_to_3d": svg_to_3d_available,
+                "model_animator": animation_available,
+                "video_renderer": rendering_available
+            },
+            "blender": {
+                "available": blender_available,
+                "path": self.blender_path if blender_available else None
+            },
+            "directories": directories_status,
+            "output_dir": self.output_dir
+        }

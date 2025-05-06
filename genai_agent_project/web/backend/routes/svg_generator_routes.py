@@ -147,9 +147,10 @@ MODELS_OUTPUT_DIR = config.get('paths', {}).get('models_output_dir', os.path.joi
 ANIMATIONS_OUTPUT_DIR = config.get('paths', {}).get('animations_output_dir', os.path.join(OUTPUT_DIR, "animations"))
 VIDEOS_OUTPUT_DIR = config.get('paths', {}).get('videos_output_dir', os.path.join(OUTPUT_DIR, "videos"))
 
-# Special path for svg_to_video output
-SVG_TO_VIDEO_DIR = os.path.join(OUTPUT_DIR, "svg_to_video")
-SVG_TO_VIDEO_SVG_DIR = os.path.join(SVG_TO_VIDEO_DIR, "svg")
+# Get svg_to_video paths from config
+SVG_TO_VIDEO_DIR = config.get('paths', {}).get('svg_to_video_dir', os.path.join(OUTPUT_DIR, "svg_to_video"))
+SVG_TO_VIDEO_SVG_DIR = config.get('paths', {}).get('svg_to_video_svg_dir', os.path.join(SVG_TO_VIDEO_DIR, "svg"))
+SVG_TO_VIDEO_MODELS_DIR = config.get('paths', {}).get('svg_to_video_models_dir', os.path.join(SVG_TO_VIDEO_DIR, "models"))
 
 # Log the output directories
 logger.info(f"Output directory: {OUTPUT_DIR}")
@@ -393,9 +394,8 @@ async def convert_svg_to_3d(
         model_path = os.path.join(MODELS_OUTPUT_DIR, model_filename)
         
         # Also define the output path for the SVG to Video directory structure
-        svg_to_video_models_dir = os.path.join(SVG_TO_VIDEO_DIR, "models")
-        os.makedirs(svg_to_video_models_dir, exist_ok=True)
-        svg_to_video_model_path = os.path.join(svg_to_video_models_dir, model_filename)
+        os.makedirs(SVG_TO_VIDEO_MODELS_DIR, exist_ok=True)
+        svg_to_video_model_path = os.path.join(SVG_TO_VIDEO_MODELS_DIR, model_filename)
         
         # Convert SVG to 3D
         logger.info(f"Converting SVG to 3D model: {full_svg_path} -> {model_path}")
@@ -409,6 +409,15 @@ async def convert_svg_to_3d(
             svg_path=full_svg_path,
             output_path=model_path
         )
+        
+        # Check Blender availability from config
+        blender_path = config.get('blender', {}).get('path')
+        if blender_path and os.path.exists(blender_path):
+            logger.info(f"Blender is available at: {blender_path}")
+            # Add model to the recent models list if needed
+        else:
+            logger.warning(f"Blender is not available at path: {blender_path}")
+            logger.warning("SVG to 3D conversion might be limited without Blender")
         
         if not result:
             logger.error("SVG to 3D conversion failed with no specific error message")

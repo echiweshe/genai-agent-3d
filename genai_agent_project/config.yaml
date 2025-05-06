@@ -1,6 +1,6 @@
 blender:
   addons_path: addons/
-  path: C:\Program Files\Blender Foundation\Blender 4.2\blender.exe
+  path: C:/Program Files/Blender Foundation/Blender 4.2/blender.exe
 general:
   debug: true
   log_level: info
@@ -88,6 +88,9 @@ paths:
   output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output
   scenes_output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/scenes
   svg_output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/svg
+  svg_to_video_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/svg_to_video
+  svg_to_video_svg_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/svg_to_video/svg
+  svg_to_video_models_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/svg_to_video/models
   trellis_output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/trellis
 redis:
   db: 0

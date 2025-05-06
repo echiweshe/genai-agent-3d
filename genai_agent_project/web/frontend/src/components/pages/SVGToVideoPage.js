@@ -36,6 +36,7 @@ import Image3dRotationIcon from '@mui/icons-material/ThreeDRotation';
 import MovieIcon from '@mui/icons-material/Movie';
 import { executeTool, getDiagrams, deleteDiagram } from '../../services/api';
 import DiagramViewer from '../viewers/DiagramViewer';
+import BlenderIntegration from '../svg/BlenderIntegration';
 
 // Example descriptions for different diagram types
 const EXAMPLE_DESCRIPTIONS = {
@@ -772,6 +773,11 @@ const SVGToVideoPage = ({ addNotification }) => {
                 <Alert severity="info">
                   3D model created and saved to {model3D.path}
                 </Alert>
+                
+                {/* Add Blender Integration Component */}
+                <Box sx={{ mt: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
+                  <BlenderIntegration modelPath={model3D.path} />
+                </Box>
               </Grid>
               
               <Grid item xs={12}>
@@ -808,6 +814,11 @@ const SVGToVideoPage = ({ addNotification }) => {
                 <Alert severity="info">
                   Animated model created and saved to {animatedModel.path}
                 </Alert>
+                
+                {/* Add Blender Integration Component */}
+                <Box sx={{ mt: 2, p: 2, border: '1px solid #e0e0e0', borderRadius: 1 }}>
+                  <BlenderIntegration modelPath={animatedModel.path} />
+                </Box>
               </Grid>
               
               <Grid item xs={12}>

@@ -33,16 +33,18 @@ from pydantic import BaseModel
 from genai_agent.services.llm_api_routes import add_llm_routes
 from genai_agent.services.settings_api import add_settings_routes
 try:
-    from routes.blender_execute import router as blender_router
+    from routes.blender_routes import router as blender_routes_router
+    logger.info("Blender routes loaded")
 except ImportError as e:
-    logger.warning(f"Blender execution routes not loaded: {e}")
-    try:
-        # Try our simplified router as a fallback
-        from routes.simple_blender import router as blender_router
-        logger.info("Using simplified Blender router instead")
-    except ImportError as e2:
-        logger.warning(f"Simplified Blender router also failed: {e2}")
-        blender_router = None
+    logger.warning(f"Blender routes not loaded: {e}")
+    blender_routes_router = None
+
+try:
+    from routes.blender_integration_routes import router as blender_integration_router
+    logger.info("Blender integration routes loaded")
+except ImportError as e:
+    logger.warning(f"Blender integration routes not loaded: {e}")
+    blender_integration_router = None
 
 try:
     from routes.debug_routes import router as debug_router
@@ -82,8 +84,11 @@ app.add_middleware(
 )
 
 # Include routers
-if blender_router:
-    app.include_router(blender_router)
+if blender_routes_router:
+    app.include_router(blender_routes_router)
+
+if blender_integration_router:
+    app.include_router(blender_integration_router)
 
 if debug_router:
     app.include_router(debug_router)
