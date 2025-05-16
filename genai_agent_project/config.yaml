@@ -31,7 +31,7 @@ integrations:
 llm:
   api_key: null
   generation_timeout: 300
-  model: llama3
+  model: claude-3-sonnet-20240229
   prompt_templates:
     json_generation: 'You are a JSON generation assistant. Generate only valid, well-formed
       JSON with no explanations.
@@ -41,7 +41,7 @@ llm:
       Do not include markdown code blocks or any text outside the JSON.
 
       '
-  provider: ollama
+  provider: anthropic
   providers:
     anthropic:
       models:
@@ -81,18 +81,16 @@ memory:
   storage_type: redis
   ttl: 3600
 paths:
-  # Use a common base output directory for all components
-  output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output
-  # All subdirectories should be children of output_dir
   blendergpt_output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/blendergpt
   diagrams_output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/diagrams
   hunyuan_output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/hunyuan
   models_output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/models
+  output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output
   scenes_output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/scenes
   svg_output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/svg
   svg_to_video_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/svg_to_video
-  svg_to_video_svg_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/svg_to_video/svg
   svg_to_video_models_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/svg_to_video/models
+  svg_to_video_svg_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/svg_to_video/svg
   trellis_output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/trellis
 redis:
   db: 0
