@@ -59,6 +59,22 @@ except ImportError as e:
     logger.warning(f"SVG Generator routes not loaded: {e}")
     svg_generator_router = None
 
+# Import the new SVG to 3D routes
+try:
+    from routes.svg_to_3d_routes import router as svg_to_3d_router
+    logger.info("SVG to 3D routes loaded")
+except ImportError as e:
+    logger.warning(f"SVG to 3D routes not loaded: {e}")
+    svg_to_3d_router = None
+
+# Import the new SVG import routes
+try:
+    from routes.svg_import_routes import router as svg_import_router
+    logger.info("SVG import routes loaded")
+except ImportError as e:
+    logger.warning(f"SVG import routes not loaded: {e}")
+    svg_import_router = None
+
 # Import GenAI Agent 3D components
 from genai_agent.agent import GenAIAgent
 from genai_agent.services.redis_bus import RedisMessageBus
@@ -69,6 +85,18 @@ app = FastAPI(
     description="API for interacting with the GenAI Agent 3D system",
     version="0.1.0"
 )
+
+# Determine root output directory for static files
+output_dir = None
+config_path = os.path.join(parent_dir, "config.yaml")
+if os.path.exists(config_path):
+    with open(config_path, 'r') as f:
+        try:
+            config = yaml.safe_load(f)
+            output_dir = config.get('paths', {}).get('output_dir')
+            logger.info(f"Using output directory from config: {output_dir}")
+        except Exception as e:
+            logger.warning(f"Error loading output directory from config: {e}")
 
 # Add LLM routes
 add_llm_routes(app)
@@ -83,6 +111,19 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+# Mount static files directory for serving output files
+if output_dir and os.path.exists(output_dir):
+    app.mount("/output", StaticFiles(directory=output_dir), name="output")
+    logger.info(f"Mounted output directory: {output_dir} at /output")
+else:
+    # If output_dir from config not found, try using the output directory relative to the parent directory
+    fallback_output_dir = os.path.join(parent_dir, "output")
+    if os.path.exists(fallback_output_dir):
+        app.mount("/output", StaticFiles(directory=fallback_output_dir), name="output")
+        logger.info(f"Mounted fallback output directory: {fallback_output_dir} at /output")
+    else:
+        logger.warning("No valid output directory found to mount for static file serving")
+
 # Include routers
 if blender_routes_router:
     app.include_router(blender_routes_router)
@@ -95,6 +136,14 @@ if debug_router:
     
 if svg_generator_router:
     app.include_router(svg_generator_router)
+
+# Include the new SVG to 3D routes
+if svg_to_3d_router:
+    app.include_router(svg_to_3d_router)
+
+# Include the new SVG import routes
+if svg_import_router:
+    app.include_router(svg_import_router)
 
 # Define models
 class InstructionRequest(BaseModel):
@@ -380,10 +429,6 @@ async def upload_file(file: UploadFile = File(...)):
         logger.error(f"Error uploading file: {str(e)}")
         return {"status": "error", "message": str(e)}
 
-@app.get("/results/{filename}")
-async def get_result_file(filename: str):
-    pass
-
 @app.get("/models")
 async def get_models():
     """Get available models - direct handler for frontend compatibility"""
@@ -515,16 +560,58 @@ async def get_blender_tools():
 @app.get("/results/{filename}")
 async def get_result_file(filename: str):
     try:
-        # Check file extension
-        output_dir = os.path.join(parent_dir, "output")
+        # Get output directory from config
+        config_path = os.path.join(parent_dir, "config.yaml")
+        output_dir = None
+        if os.path.exists(config_path):
+            with open(config_path, 'r') as f:
+                try:
+                    config = yaml.safe_load(f)
+                    output_dir = config.get('paths', {}).get('output_dir')
+                except Exception as e:
+                    logger.warning(f"Error loading output directory from config: {e}")
+        
+        # Fallback to default if not found in config
+        if not output_dir or not os.path.exists(output_dir):
+            output_dir = os.path.join(parent_dir, "output")
+        
+        logger.info(f"Searching for {filename} in {output_dir}")
         
         # Search for the file in subdirectories
         for root, dirs, files in os.walk(output_dir):
             if filename in files:
                 file_path = os.path.join(root, filename)
+                logger.info(f"Found file at {file_path}")
                 return FileResponse(file_path)
         
-        raise HTTPException(status_code=404, detail="File not found")
+        # If file not found in output directory, check relative paths like 'models/filename'
+        if '/' in filename:
+            parts = filename.split('/')
+            subdir = parts[0]
+            file_name = parts[-1]
+            
+            # Check in appropriate subdirectory
+            subdir_path = os.path.join(output_dir, subdir)
+            if os.path.exists(subdir_path):
+                for root, dirs, files in os.walk(subdir_path):
+                    if file_name in files:
+                        file_path = os.path.join(root, file_name)
+                        logger.info(f"Found file at {file_path}")
+                        return FileResponse(file_path)
+        
+        # If still not found, give more detailed error
+        logger.warning(f"File not found: {filename} in {output_dir}")
+        # List available files for debugging
+        available_files = []
+        for root, dirs, files in os.walk(output_dir):
+            for file in files:
+                available_files.append(os.path.join(os.path.relpath(root, output_dir), file))
+        
+        logger.info(f"Available files: {available_files[:10]}" + ("..." if len(available_files) > 10 else ""))
+        
+        raise HTTPException(status_code=404, detail=f"File not found: {filename}")
+    except HTTPException:
+        raise
     except Exception as e:
         logger.error(f"Error getting result file: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))

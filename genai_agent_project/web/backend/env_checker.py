@@ -1,127 +1,92 @@
 """
-Environment Variable Checker for GenAI Agent 3D
+Environment variable checker for SVG to Video pipeline.
 
-This script checks if Anthropic API key is properly set in the environment.
+This module provides functions to check and set up environment variables.
 """
 
 import os
-import sys
 import logging
-import traceback
-import dotenv
-from pathlib import Path
 
-# Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
 
-def find_env_file():
-    """Find the .env file"""
-    # Start with current directory
-    current_dir = Path.cwd()
+def setup_env_variables():
+    """
+    Set up the necessary environment variables for the SVG to Video pipeline.
     
-    # Check current directory
-    env_path = current_dir / ".env"
-    if env_path.exists():
-        return env_path
+    Returns:
+        bool: True if all required environment variables are set, False otherwise
+    """
+    required_vars = {
+        "BLENDER_PATH": "Path to Blender executable",
+    }
     
-    # Check parent directory
-    parent_dir = current_dir.parent
-    env_path = parent_dir / ".env"
-    if env_path.exists():
-        return env_path
+    optional_vars = {
+        "ANTHROPIC_API_KEY": "API key for Claude (Anthropic)",
+        "OPENAI_API_KEY": "API key for OpenAI"
+    }
     
-    # Check grandparent directory
-    grandparent_dir = parent_dir.parent
-    env_path = grandparent_dir / ".env"
-    if env_path.exists():
-        return env_path
+    # Check required variables
+    missing_required = []
+    for var, description in required_vars.items():
+        if not os.environ.get(var):
+            missing_required.append(var)
+            logger.warning(f"Missing required environment variable: {var} - {description}")
+    
+    # Check optional variables
+    missing_optional = []
+    for var, description in optional_vars.items():
+        if not os.environ.get(var):
+            missing_optional.append(var)
+            logger.warning(f"Missing optional environment variable: {var} - {description}")
+    
+    # Log status
+    if missing_required:
+        logger.warning(f"Missing required environment variables: {', '.join(missing_required)}")
+    else:
+        logger.info("All required environment variables are set")
+    
+    if missing_optional:
+        logger.warning(f"Missing optional environment variables: {', '.join(missing_optional)}")
+    else:
+        logger.info("All optional environment variables are set")
+    
+    # Check default paths for Blender
+    if "BLENDER_PATH" in missing_required:
+        blender_path = find_blender_executable()
+        if blender_path:
+            os.environ["BLENDER_PATH"] = blender_path
+            logger.info(f"Found Blender at {blender_path}")
+            missing_required.remove("BLENDER_PATH")
+    
+    return len(missing_required) == 0
+
+def find_blender_executable():
+    """
+    Find the Blender executable in common locations.
+    
+    Returns:
+        str: Path to the Blender executable or None if not found
+    """
+    common_paths = [
+        r"C:\Program Files\Blender Foundation\Blender 4.2\blender.exe",
+        r"C:\Program Files\Blender Foundation\Blender 4.1\blender.exe",
+        r"C:\Program Files\Blender Foundation\Blender 4.0\blender.exe",
+        r"C:\Program Files\Blender Foundation\Blender 3.6\blender.exe",
+        r"C:\Program Files\Blender Foundation\Blender 3.5\blender.exe",
+        r"C:\Program Files\Blender Foundation\Blender\blender.exe",
+        r"/usr/bin/blender",
+        r"/Applications/Blender.app/Contents/MacOS/Blender"
+    ]
+    
+    for path in common_paths:
+        if os.path.exists(path):
+            return path
     
     return None
 
-def load_env_variables():
-    """Load environment variables from .env file"""
-    # Try to find .env file
-    env_path = find_env_file()
-    
-    if env_path:
-        logger.info(f"Found .env file at: {env_path}")
-        # Load .env file
-        dotenv.load_dotenv(env_path)
-        return True
-    else:
-        logger.warning("No .env file found")
-        return False
-
-def check_api_keys():
-    """Check if required API keys are available in environment"""
-    # Check Anthropic API key
-    anthropic_api_key = os.environ.get("ANTHROPIC_API_KEY")
-    if anthropic_api_key:
-        logger.info(f"Anthropic API key is set: {anthropic_api_key[:8]}...")
-    else:
-        logger.error("Anthropic API key is not set")
-        
-    # Check other API keys if needed
-    openai_api_key = os.environ.get("OPENAI_API_KEY")
-    if openai_api_key:
-        logger.info(f"OpenAI API key is set: {openai_api_key[:8]}...")
-    else:
-        logger.warning("OpenAI API key is not set")
-    
-    # Return True if Anthropic API key is set
-    return bool(anthropic_api_key)
-
-def setup_env_variables():
-    """Set up environment variables from parent directory .env file"""
-    # Look for .env file in parent directories
-    if not load_env_variables():
-        logger.warning("Could not load environment variables from .env file")
-        
-        # Try parent .env
-        project_root = Path(__file__).parent.parent.parent
-        env_path = project_root / ".env"
-        
-        if env_path.exists():
-            logger.info(f"Found .env file at project root: {env_path}")
-            dotenv.load_dotenv(env_path)
-            logger.info("Loaded environment variables from project root .env file")
-        else:
-            logger.warning(f"No .env file found at project root: {env_path}")
-    
-    # Copy ANTHROPIC_API_KEY from parent if not set
-    if not os.environ.get("ANTHROPIC_API_KEY"):
-        # Look in config.yaml
-        try:
-            import yaml
-            
-            config_path = Path(__file__).parent.parent / "config.yaml"
-            if config_path.exists():
-                with open(config_path, 'r') as f:
-                    config = yaml.safe_load(f)
-                
-                # Check if API key is in config
-                if 'llm' in config and 'api_key' in config['llm'] and config['llm']['api_key']:
-                    api_key = config['llm']['api_key']
-                    os.environ["ANTHROPIC_API_KEY"] = api_key
-                    logger.info(f"Set ANTHROPIC_API_KEY from config.yaml: {api_key[:8]}...")
-                    return True
-        except Exception as e:
-            logger.error(f"Error reading config.yaml: {str(e)}")
-    
-    return check_api_keys()
-
 if __name__ == "__main__":
-    try:
-        logger.info("Checking environment variables...")
-        
-        if setup_env_variables():
-            logger.info("Environment variables are properly set")
-            sys.exit(0)
-        else:
-            logger.error("Environment variables are not properly set")
-            sys.exit(1)
-    except Exception as e:
-        logger.error(f"Error checking environment variables: {str(e)}")
-        traceback.print_exc()
-        sys.exit(1)
+    # Configure logging
+    logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+    
+    # Test the module
+    setup_env_variables()

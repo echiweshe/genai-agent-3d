@@ -81,11 +81,13 @@ memory:
   storage_type: redis
   ttl: 3600
 paths:
+  # Use a common base output directory for all components
+  output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output
+  # All subdirectories should be children of output_dir
   blendergpt_output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/blendergpt
   diagrams_output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/diagrams
   hunyuan_output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/hunyuan
   models_output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/models
-  output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output
   scenes_output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/scenes
   svg_output_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/svg
   svg_to_video_dir: C:/ZB_Share/Labs/src/CluadeMCP/genai-agent-3d/output/svg_to_video

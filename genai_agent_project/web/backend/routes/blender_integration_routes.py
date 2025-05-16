@@ -49,12 +49,71 @@ async def open_model(request: OpenInBlenderRequest):
     model_path = request.model_path
     new_instance = request.new_instance
     
+    # Load config to get the output directory
+    project_root = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))))
+    config_path = os.path.join(project_root, "config.yaml")
+    
+    try:
+        import yaml
+        with open(config_path, 'r') as f:
+            config = yaml.safe_load(f)
+            output_dir = config.get('paths', {}).get('output_dir')
+    except Exception as e:
+        logger.warning(f"Error loading config: {str(e)}")
+        output_dir = os.path.join(project_root, "output")
+    
+    # Process model path
+    if not os.path.isabs(model_path):
+        # Check if it starts with models/, output/, etc.
+        if model_path.startswith(('models/', 'output/models/')):
+            # Replace output/ prefix if present
+            if model_path.startswith('output/'):
+                model_path = model_path[7:]
+            # Replace models/ prefix with the full output/models/ path
+            if model_path.startswith('models/'):
+                model_path = os.path.join(output_dir, model_path)
+        else:
+            # Try direct path first
+            if not os.path.exists(model_path):
+                # Then check in output/models
+                possible_path = os.path.join(output_dir, "models", model_path)
+                if os.path.exists(possible_path):
+                    model_path = possible_path
+                else:
+                    # Search for the file in output directory
+                    found = False
+                    for root, dirs, files in os.walk(output_dir):
+                        if os.path.basename(model_path) in files:
+                            model_path = os.path.join(root, os.path.basename(model_path))
+                            found = True
+                            break
+                    
+                    if not found:
+                        raise HTTPException(
+                            status_code=status.HTTP_404_NOT_FOUND,
+                            detail=f"Model file not found: {model_path}"
+                        )
+    
+    # Ensure path exists
     if not os.path.exists(model_path):
+        logger.error(f"Model file not found after path resolution: {model_path}")
+        # List available files in models directory for debugging
+        models_dir = os.path.join(output_dir, "models")
+        available_models = []
+        if os.path.exists(models_dir):
+            for root, dirs, files in os.walk(models_dir):
+                for file in files:
+                    relative_path = os.path.relpath(os.path.join(root, file), output_dir)
+                    available_models.append(relative_path)
+        
+        logger.info(f"Available models: {available_models[:10]}" + ("..." if len(available_models) > 10 else ""))
+        
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Model file not found: {model_path}"
         )
     
+    logger.info(f"Opening model in Blender: {model_path}")
     success = open_model_in_blender(model_path, new_instance)
     
     if not success:
@@ -63,7 +122,7 @@ async def open_model(request: OpenInBlenderRequest):
             detail="Failed to open model in Blender"
         )
     
-    return {"status": "success", "message": "Model opened in Blender"}
+    return {"status": "success", "message": "Model opened in Blender", "path": model_path}
 
 @router.get("/check-integration")
 async def check_blender_integration():

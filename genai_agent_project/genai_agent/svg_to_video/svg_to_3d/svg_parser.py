@@ -19,15 +19,14 @@ from .svg_utils import log
 class SVGParser:
     """Enhanced SVG Parser with path support."""
     
-    def __init__(self, svg_path, debug=False):
+    def __init__(self, debug=False):
         """
         Initialize the SVG parser.
         
         Args:
-            svg_path: Path to the SVG file
             debug: Enable debug output
         """
-        self.svg_path = svg_path
+        self.svg_path = None
         self.debug = debug
         self.elements = []
         self.width = 800
@@ -52,8 +51,9 @@ class SVGParser:
         if self.debug:
             log(f"DEBUG: {message}")
     
-    def parse(self):
+    def parse(self, svg_path):
         """Parse the SVG file and extract elements."""
+        self.svg_path = svg_path
         log(f"Parsing SVG: {self.svg_path}")
         
         try:
@@ -86,12 +86,17 @@ class SVGParser:
                 if count > 0:
                     self.debug_log(f"  - {elem_type}: {count}")
             
-            return self.elements, self.width, self.height
+            # Return data in the format expected by the converter
+            return {
+                'elements': self.elements,
+                'width': self.width,
+                'height': self.height
+            }
             
         except Exception as e:
             log(f"Error parsing SVG: {e}")
             traceback.print_exc()
-            return [], 800, 600
+            return None
     
     from .svg_parser_elements import (
         _process_element, _parse_style, _parse_transform, _apply_transform,
