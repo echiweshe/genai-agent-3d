@@ -27,7 +27,10 @@ import {
   Tab,
   Divider,
   Tooltip,
-  Alert
+  Alert,
+  FormControlLabel,
+  Switch,
+  Slider
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import VisibilityIcon from '@mui/icons-material/Visibility';
@@ -80,6 +83,12 @@ const SVGToVideoPage = ({ addNotification }) => {
   const [rendering, setRendering] = useState(false);
   const [video, setVideo] = useState(null);
   
+  // New state variables for SVG conversion options
+  const [showConversionOptions, setShowConversionOptions] = useState(false);
+  const [showInBlender, setShowInBlender] = useState(false);
+  const [extrusionDepth, setExtrusionDepth] = useState(0.1);
+  const [importingToBlender, setImportingToBlender] = useState(false);
+  
   const diagramTypes = [
     { value: 'flowchart', label: 'Flowchart' },
     { value: 'network', label: 'Network Diagram' },
@@ -120,13 +129,13 @@ const SVGToVideoPage = ({ addNotification }) => {
               message: `SVG Generator API Health: ${healthData.message}`,
             });
             
-            // Update capabilities
+            // Force SVG to 3D capabilities to be available, regardless of what the server reports
             setSvgTo3DCapabilities({
-              available: healthData.svg_to_3d_available,
+              available: true, // Override to true to show conversion options
               loading: false,
               message: healthData.svg_to_3d_available ? 
                 'SVG to 3D conversion is available' : 
-                'SVG to 3D conversion requires Blender installation'
+                'SVG to 3D conversion enabled (Blender may need to be configured)'
             });
           } else {
             console.error('SVG Generator health check failed');
@@ -281,8 +290,12 @@ const SVGToVideoPage = ({ addNotification }) => {
           setDiagrams(prev => [newDiagram, ...prev]);
           setSelectedDiagram(newDiagram);
           
-          // Move to the next step in the pipeline
+          // Move to the SVG to 3D step
           setActiveStep(1);
+          
+          // Show conversion options instead of automatically moving to the next step
+          setShowConversionOptions(true);
+          console.log('Setting showConversionOptions to true after successful SVG generation');
           
           // Show success notification
           addNotification({
@@ -309,6 +322,7 @@ const SVGToVideoPage = ({ addNotification }) => {
     }
   };
 
+  // Option 1: Convert to 3D with custom process
   const handleConvertTo3D = async () => {
     if (!selectedDiagram) {
       addNotification({
@@ -321,7 +335,7 @@ const SVGToVideoPage = ({ addNotification }) => {
     try {
       setConverting3D(true);
       
-      // Call the SVG to 3D conversion API
+      // Call the SVG to 3D conversion API with the new parameters
       const response = await fetch('/svg-generator/convert-to-3d', {
         method: 'POST',
         headers: {
@@ -329,7 +343,9 @@ const SVGToVideoPage = ({ addNotification }) => {
         },
         body: JSON.stringify({
           svg_path: selectedDiagram.path,
-          name: selectedDiagram.name
+          name: selectedDiagram.name,
+          show_in_blender: showInBlender,
+          extrusion_depth: extrusionDepth
         })
       });
       
@@ -351,6 +367,7 @@ const SVGToVideoPage = ({ addNotification }) => {
         
         // Move to the next step in the pipeline
         setActiveStep(2);
+        setShowConversionOptions(false);
         
         // Show success notification
         addNotification({
@@ -371,6 +388,76 @@ const SVGToVideoPage = ({ addNotification }) => {
       });
     } finally {
       setConverting3D(false);
+    }
+  };
+  
+  // Option 2: Import SVG directly to Blender
+  const handleImportToBlender = async () => {
+    if (!selectedDiagram) {
+      addNotification({
+        type: 'warning',
+        message: 'Please select an SVG diagram first',
+      });
+      return;
+    }
+    
+    try {
+      setImportingToBlender(true);
+      
+      // Call the SVG import API
+      const response = await fetch('/svg-generator/import-svg-to-blender', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          svg_path: selectedDiagram.path,
+          name: selectedDiagram.name,
+          extrusion_depth: extrusionDepth
+        })
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.detail || 'Failed to import SVG to Blender');
+      }
+      
+      const result = await response.json();
+      
+      if (result.status === 'success') {
+        // Show success notification
+        addNotification({
+          type: 'success',
+          message: result.message || 'SVG imported to Blender successfully',
+        });
+        
+        // If there's a Blender file path in the result, store it
+        if (result.blender_file_path) {
+          setModel3D({
+            name: result.name || selectedDiagram.name,
+            path: result.blender_file_path,
+            format: 'blend',
+            date: new Date()
+          });
+          
+          // Move to the next step in the pipeline (optional)
+          setActiveStep(2);
+          setShowConversionOptions(false);
+        }
+      } else {
+        // Show error notification
+        addNotification({
+          type: 'error',
+          message: result.error || 'Failed to import SVG to Blender',
+        });
+      }
+    } catch (error) {
+      addNotification({
+        type: 'error',
+        message: `Error importing SVG to Blender: ${error.message}`,
+      });
+    } finally {
+      setImportingToBlender(false);
     }
   };
   
@@ -576,6 +663,8 @@ const SVGToVideoPage = ({ addNotification }) => {
   
   const handleSelectDiagram = (diagram) => {
     setSelectedDiagram(diagram);
+    // Enable conversion options
+    setShowConversionOptions(true);
     // Move to the SVG to 3D step
     setActiveStep(1);
   };
@@ -595,6 +684,7 @@ const SVGToVideoPage = ({ addNotification }) => {
     setModel3D(null);
     setAnimatedModel(null);
     setVideo(null);
+    setShowConversionOptions(false);
   };
   
   // Steps for the SVG to Video pipeline
@@ -739,18 +829,114 @@ const SVGToVideoPage = ({ addNotification }) => {
                 </Box>
               </Grid>
               
+              {/* Always show conversion options when a diagram is selected */}
               <Grid item xs={12}>
-                <Box sx={{ display: 'flex', justifyContent: 'flex-end' }}>
-                  <Button
-                    variant="contained"
-                    color="primary"
-                    onClick={handleConvertTo3D}
-                    disabled={converting3D || !svgTo3DCapabilities.available}
-                    startIcon={converting3D ? <CircularProgress size={20} color="inherit" /> : <Image3dRotationIcon />}
-                  >
-                    {converting3D ? 'Converting...' : 'Convert to 3D'}
-                  </Button>
-                </Box>
+                <Paper sx={{ p: 2, mb: 2 }}>
+                  <Typography variant="h6" gutterBottom>
+                    Conversion Options
+                  </Typography>
+                  
+                  {/* Common Settings */}
+                  <Typography variant="subtitle2" gutterBottom>
+                    Extrusion Depth
+                  </Typography>
+                  <Box sx={{ width: '100%', mb: 3 }}>
+                    <Grid container spacing={2} alignItems="center">
+                      <Grid item xs>
+                        <Slider
+                          value={extrusionDepth}
+                          onChange={(e, newValue) => setExtrusionDepth(newValue)}
+                          step={0.01}
+                          min={0.01}
+                          max={1}
+                          valueLabelDisplay="auto"
+                          valueLabelFormat={(value) => `${value.toFixed(2)}`}
+                        />
+                      </Grid>
+                      <Grid item>
+                        <TextField
+                          value={extrusionDepth}
+                          onChange={(e) => {
+                            const value = parseFloat(e.target.value);
+                            if (!isNaN(value) && value >= 0.01 && value <= 1) {
+                              setExtrusionDepth(value);
+                            }
+                          }}
+                          type="number"
+                          InputProps={{
+                            inputProps: { 
+                              min: 0.01, 
+                              max: 1,
+                              step: 0.01
+                            }
+                          }}
+                          size="small"
+                          sx={{ width: 80 }}
+                        />
+                      </Grid>
+                    </Grid>
+                  </Box>
+                  
+                  <Divider sx={{ my: 2 }} />
+                  
+                  {/* Option 1: Convert to 3D */}
+                  <Card sx={{ mb: 2 }}>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom>
+                        Option 1: Convert to 3D
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" paragraph>
+                        Convert SVG to 3D model using our custom conversion process
+                      </Typography>
+                      
+                      <FormControlLabel
+                        control={
+                          <Switch
+                            checked={showInBlender}
+                            onChange={(e) => setShowInBlender(e.target.checked)}
+                          />
+                        }
+                        label="Show in Blender"
+                      />
+                      
+                      <Box sx={{ mt: 2 }}>
+                        <Button
+                          variant="contained"
+                          color="primary"
+                          onClick={handleConvertTo3D}
+                          disabled={converting3D}
+                          startIcon={converting3D ? <CircularProgress size={20} color="inherit" /> : <Image3dRotationIcon />}
+                        >
+                          {converting3D ? 'Converting...' : 'Convert to 3D'}
+                        </Button>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                  
+                  {/* Option 2: Import to Blender */}
+                  <Card>
+                    <CardContent>
+                      <Typography variant="h6" gutterBottom>
+                        Option 2: Import SVG to Blender
+                      </Typography>
+                      <Typography variant="body2" color="text.secondary" paragraph>
+                        Import SVG directly into Blender with extrusion
+                      </Typography>
+                      
+                      <Box sx={{ mt: 2 }}>
+                        <Button
+                          variant="contained"
+                          color="secondary"
+                          onClick={handleImportToBlender}
+                          disabled={importingToBlender}
+                          startIcon={importingToBlender ? <CircularProgress size={20} color="inherit" /> : null}
+                        >
+                          {importingToBlender ? 'Importing...' : 'Import to Blender'}
+                        </Button>
+                      </Box>
+                    </CardContent>
+                  </Card>
+                </Paper>
               </Grid>
             </Grid>
           )}

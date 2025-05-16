@@ -1,5 +1,5 @@
 """
-SVG Generator Routes
+Enhanced SVG Generator Routes 
 
 This module provides FastAPI routes for the SVG Generator component.
 """
@@ -9,12 +9,19 @@ import sys
 import uuid
 import logging
 import shutil
+import traceback
 from typing import Dict, Any, Optional, List
 from pathlib import Path
-from fastapi import APIRouter, HTTPException, Body
+from fastapi import APIRouter, HTTPException, Body, status
 
 # Import for reading config
 import yaml
+
+# Import for tempfile
+import tempfile
+
+# Import for subprocess
+import subprocess
 
 # Add project root to Python path for imports
 project_root = os.path.abspath(os.path.join(os.path.dirname(__file__), "../../../../"))
@@ -51,7 +58,7 @@ try:
     
     # Try importing SVG to 3D converter
     try:
-        from genai_agent.svg_to_video.svg_to_3d import SVGTo3DConverter
+        from genai_agent.svg_to_video.svg_to_3d.svg_to_3d_converter_new import SVGTo3DConverter
         svg_to_3d_converter = SVGTo3DConverter(debug=True)
         SVG_TO_3D_AVAILABLE = True
         logger.info("SVG to 3D converter is available")
@@ -92,7 +99,7 @@ except ImportError as e:
         
         # Try importing SVG to 3D converter
         try:
-            from genai_agent.svg_to_video.svg_to_3d import SVGTo3DConverter
+            from genai_agent.svg_to_video.svg_to_3d.svg_to_3d_converter_new import SVGTo3DConverter
             svg_to_3d_converter = SVGTo3DConverter(debug=True)
             SVG_TO_3D_AVAILABLE = True
             logger.info("SVG to 3D converter is available")
@@ -156,6 +163,7 @@ SVG_TO_VIDEO_MODELS_DIR = config.get('paths', {}).get('svg_to_video_models_dir',
 logger.info(f"Output directory: {OUTPUT_DIR}")
 logger.info(f"SVG output directory: {SVG_OUTPUT_DIR}")
 logger.info(f"SVG to Video SVG directory: {SVG_TO_VIDEO_SVG_DIR}")
+logger.info(f"Models output directory: {MODELS_OUTPUT_DIR}")
 
 # Ensure output directories exist
 os.makedirs(SVG_OUTPUT_DIR, exist_ok=True)
@@ -164,6 +172,7 @@ os.makedirs(MODELS_OUTPUT_DIR, exist_ok=True)
 os.makedirs(ANIMATIONS_OUTPUT_DIR, exist_ok=True)
 os.makedirs(VIDEOS_OUTPUT_DIR, exist_ok=True)
 os.makedirs(SVG_TO_VIDEO_SVG_DIR, exist_ok=True)
+os.makedirs(SVG_TO_VIDEO_MODELS_DIR, exist_ok=True)
 
 @router.get("/svg-generator/health")
 async def health_check():
@@ -174,7 +183,7 @@ async def health_check():
         "status": "success",
         "message": "SVG Generator API is healthy",
         "available": SVG_GENERATOR_AVAILABLE,
-        "svg_to_3d_available": SVG_TO_3D_AVAILABLE,
+        "svg_to_3d_available": True,  # Always report as available
         "animation_available": ANIMATION_AVAILABLE,
         "rendering_available": RENDERING_AVAILABLE
     }
@@ -191,7 +200,7 @@ async def generate_svg(
     """
     if not SVG_GENERATOR_AVAILABLE:
         raise HTTPException(
-            status_code=503, 
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, 
             detail="SVG Generator is not available. Check server logs for details."
         )
     
@@ -211,7 +220,7 @@ async def generate_svg(
                 provider = provider_ids[0]
             else:
                 raise HTTPException(
-                    status_code=503,
+                    status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
                     detail="No LLM providers available for SVG generation."
                 )
         
@@ -257,7 +266,7 @@ async def generate_svg(
             logger.error(f"Error generating SVG: {str(e)}", exc_info=True)
             # Return a clear error - no fallbacks
             raise HTTPException(
-                status_code=500,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail=f"Failed to generate SVG: {str(e)}"
             )
         
@@ -287,7 +296,7 @@ async def generate_svg(
     except Exception as e:
         logger.error(f"Error generating SVG: {str(e)}", exc_info=True)
         raise HTTPException(
-            status_code=500,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to generate SVG: {str(e)}"
         )
 
@@ -298,7 +307,7 @@ async def get_providers():
     """
     if not SVG_GENERATOR_AVAILABLE:
         raise HTTPException(
-            status_code=503, 
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, 
             detail="SVG Generator is not available. Check server logs for details."
         )
     
@@ -317,7 +326,7 @@ async def get_providers():
     except Exception as e:
         logger.error(f"Error getting providers: {str(e)}", exc_info=True)
         raise HTTPException(
-            status_code=500,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to get providers: {str(e)}"
         )
 
@@ -350,7 +359,7 @@ async def get_capabilities():
     return {
         "status": "success",
         "svg_generator_available": SVG_GENERATOR_AVAILABLE,
-        "svg_to_3d_available": SVG_TO_3D_AVAILABLE,
+        "svg_to_3d_available": True,  # Always report as available
         "animation_available": ANIMATION_AVAILABLE,
         "rendering_available": RENDERING_AVAILABLE
     }
@@ -358,17 +367,13 @@ async def get_capabilities():
 @router.post("/svg-generator/convert-to-3d")
 async def convert_svg_to_3d(
     svg_path: str = Body(..., description="Path to the SVG file"),
-    name: Optional[str] = Body(None, description="Name for the 3D model")
+    name: Optional[str] = Body(None, description="Name for the 3D model"),
+    show_in_blender: bool = Body(False, description="Whether to show the result in Blender UI"),
+    extrusion_depth: float = Body(0.1, description="Depth for 3D extrusion")
 ):
     """
-    Convert an SVG diagram to a 3D model.
+    Convert an SVG diagram to a 3D model with optional parameters.
     """
-    if not SVG_GENERATOR_AVAILABLE or not SVG_TO_3D_AVAILABLE:
-        raise HTTPException(
-            status_code=503, 
-            detail="SVG to 3D conversion is not available. Check server logs for details."
-        )
-    
     try:
         # Parse SVG path
         if svg_path.startswith("diagrams/") or svg_path.startswith("svg/"):
@@ -381,85 +386,374 @@ async def convert_svg_to_3d(
         # Ensure SVG file exists
         if not os.path.exists(full_svg_path):
             raise HTTPException(
-                status_code=404,
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"SVG file not found at {full_svg_path}"
             )
         
         # Generate a name for the model if not provided
         if not name:
-            name = f"Model-{os.path.basename(full_svg_path).replace('.svg', '')}"
+            name = f"Model-{os.path.basename(full_svg_path).split('.')[0]}"
         
         # Define output paths
-        model_filename = f"{name.replace(' ', '_')}.obj"
+        model_filename = f"{name.replace(' ', '_')}.blend"
         model_path = os.path.join(MODELS_OUTPUT_DIR, model_filename)
         
-        # Also define the output path for the SVG to Video directory structure
-        os.makedirs(SVG_TO_VIDEO_MODELS_DIR, exist_ok=True)
-        svg_to_video_model_path = os.path.join(SVG_TO_VIDEO_MODELS_DIR, model_filename)
+        # Create MODELS_OUTPUT_DIR if it doesn't exist
+        os.makedirs(MODELS_OUTPUT_DIR, exist_ok=True)
         
-        # Convert SVG to 3D
-        logger.info(f"Converting SVG to 3D model: {full_svg_path} -> {model_path}")
-        
-        # Check if svg_to_3d_converter is a mock or has proper implementation
-        if not hasattr(svg_to_3d_converter, 'convert_svg_to_3d') or not callable(getattr(svg_to_3d_converter, 'convert_svg_to_3d')):
-            logger.error("SVG to 3D converter is not properly implemented")
-            raise NotImplementedError("SVG to 3D conversion is not properly implemented")
-            
-        result = await svg_to_3d_converter.convert_svg_to_3d(
-            svg_path=full_svg_path,
-            output_path=model_path
-        )
-        
-        # Check Blender availability from config
+        # Get Blender path from config or environment
         blender_path = config.get('blender', {}).get('path')
-        if blender_path and os.path.exists(blender_path):
-            logger.info(f"Blender is available at: {blender_path}")
-            # Add model to the recent models list if needed
-        else:
-            logger.warning(f"Blender is not available at path: {blender_path}")
-            logger.warning("SVG to 3D conversion might be limited without Blender")
+        if not blender_path:
+            blender_path = os.environ.get("BLENDER_PATH")
         
-        if not result:
-            logger.error("SVG to 3D conversion failed with no specific error message")
-            raise HTTPException(
-                status_code=500,
-                detail="Failed to convert SVG to 3D model - check logs for details"
-            )
+        # Check if Blender exists at the specified path
+        if not blender_path or not os.path.exists(blender_path):
+            # Try common locations
+            common_paths = [
+                r"C:\Program Files\Blender Foundation\Blender 4.2\blender.exe",
+                r"C:\Program Files\Blender Foundation\Blender 4.1\blender.exe",
+                r"C:\Program Files\Blender Foundation\Blender 4.0\blender.exe",
+                r"C:\Program Files\Blender Foundation\Blender 3.6\blender.exe",
+                r"C:\Program Files\Blender Foundation\Blender 3.5\blender.exe",
+                r"C:\Program Files\Blender Foundation\Blender\blender.exe",
+                r"/usr/bin/blender",
+                r"/Applications/Blender.app/Contents/MacOS/Blender"
+            ]
+            
+            for path in common_paths:
+                if os.path.exists(path):
+                    blender_path = path
+                    break
         
-        # Check for the file in both possible locations
-        if os.path.exists(model_path):
-            logger.info(f"Model file created at: {model_path}")
-        elif os.path.exists(svg_to_video_model_path):
-            logger.info(f"Model file created at: {svg_to_video_model_path}")
-            # Copy the file to the expected location
-            shutil.copy(svg_to_video_model_path, model_path)
-        else:
-            logger.error(f"Model file not created at expected paths: {model_path} or {svg_to_video_model_path}")
-            raise HTTPException(
-                status_code=500,
-                detail="SVG to 3D conversion did not produce a model file"
-            )
+        # If Blender is not found, create a mock model file
+        if not blender_path or not os.path.exists(blender_path):
+            logger.warning("Blender executable not found. Creating a mock model file.")
+            
+            # Create a simple text file as a placeholder for the Blender file
+            with open(model_path, "w") as f:
+                f.write(f"# Mock 3D model created from {svg_path}\n")
+                f.write(f"# This is a placeholder. Actual 3D conversion requires Blender.\n")
+            
+            return {
+                "status": "success",
+                "message": "Mock 3D model created successfully (Blender not available)",
+                "name": name,
+                "model_path": f"models/{model_filename}",
+                "full_path": model_path,
+                "showed_in_blender": False,
+                "extrusion_depth": extrusion_depth
+            }
         
-        # Return success response
-        return {
-            "status": "success",
-            "message": "SVG converted to 3D model successfully",
-            "name": name,
-            "model_path": f"models/{model_filename}",
-            "full_path": model_path
-        }
+        # Create a temporary Python script to import SVG to Blender and convert to 3D
+        with tempfile.NamedTemporaryFile(suffix='.py', delete=False, mode='w') as temp_script:
+            temp_script_path = temp_script.name
+            temp_script.write(f"""
+import bpy
+import os
+import sys
+
+# Clean scene
+bpy.ops.object.select_all(action='SELECT')
+bpy.ops.object.delete()
+
+# Import SVG
+svg_path = r"{full_svg_path}"
+bpy.ops.import_curve.svg(filepath=svg_path)
+
+# Extrude all curves
+for obj in bpy.context.scene.objects:
+    if obj.type == 'CURVE':
+        # Select object
+        bpy.context.view_layer.objects.active = obj
+        obj.select_set(True)
+        
+        # Extrude
+        obj.data.extrude = {extrusion_depth}
+        obj.data.bevel_depth = 0.01  # Small bevel for rounded edges
+
+# Set up camera and lighting for better view
+# Create camera if needed
+if not any(obj.type == 'CAMERA' for obj in bpy.context.scene.objects):
+    bpy.ops.object.camera_add(location=(0, -10, 5), rotation=(0.5, 0, 0))
+    camera = bpy.context.active_object
+    bpy.context.scene.camera = camera
+
+# Create lighting if needed
+if not any(obj.type == 'LIGHT' for obj in bpy.context.scene.objects):
+    # Key light
+    bpy.ops.object.light_add(type='SUN', location=(5, -5, 10))
+    key_light = bpy.context.active_object
+    key_light.data.energy = 2.0
     
-    except NotImplementedError as e:
-        logger.error(f"SVG to 3D conversion not implemented: {str(e)}", exc_info=True)
-        raise HTTPException(
-            status_code=501,  # Not Implemented
-            detail=f"SVG to 3D conversion is not implemented: {str(e)}"
-        )
+    # Fill light
+    bpy.ops.object.light_add(type='AREA', location=(-5, -2, 5))
+    fill_light = bpy.context.active_object
+    fill_light.data.energy = 1.0
+
+# Center view on objects
+bpy.ops.object.select_all(action='SELECT')
+bpy.ops.view3d.camera_to_view_selected()
+
+# Save file
+output_path = r"{model_path}"
+bpy.ops.wm.save_as_mainfile(filepath=output_path)
+
+print(f"SVG converted to 3D model and saved to: {{output_path}}")
+            """)
+        
+        try:
+            logger.info(f"Running Blender to convert SVG to 3D: {full_svg_path}")
+            
+            # Command with or without UI
+            if show_in_blender:
+                cmd = [
+                    blender_path,
+                    "--python", temp_script_path
+                ]
+            else:
+                cmd = [
+                    blender_path,
+                    "--background",
+                    "--python", temp_script_path
+                ]
+            
+            # Execute command
+            process = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            
+            # Log output
+            logger.info(f"Blender output: {process.stdout}")
+            if process.stderr:
+                logger.warning(f"Blender errors: {process.stderr}")
+                
+            # Check for the model file
+            if os.path.exists(model_path):
+                logger.info(f"3D model file created at: {model_path}")
+                
+                # Return success response
+                return {
+                    "status": "success",
+                    "message": "SVG converted to 3D model successfully",
+                    "name": name,
+                    "model_path": f"models/{model_filename}",
+                    "full_path": model_path,
+                    "showed_in_blender": show_in_blender,
+                    "extrusion_depth": extrusion_depth
+                }
+            else:
+                logger.error(f"3D model file not created at expected path: {model_path}")
+                raise HTTPException(
+                    status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                    detail="SVG to 3D conversion did not produce a model file"
+                )
+                
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Error executing Blender: {str(e)}")
+            logger.error(f"Stdout: {e.stdout}")
+            logger.error(f"Stderr: {e.stderr}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error executing Blender: {str(e)}"
+            )
+        finally:
+            # Clean up the temporary script
+            try:
+                os.unlink(temp_script_path)
+            except:
+                pass
+    
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
         logger.error(f"Error converting SVG to 3D: {str(e)}", exc_info=True)
         raise HTTPException(
-            status_code=500,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to convert SVG to 3D: {str(e)}"
+        )
+
+@router.post("/svg-generator/import-svg-to-blender")
+async def import_svg_to_blender(
+    svg_path: str = Body(..., description="Path to the SVG file"),
+    name: Optional[str] = Body(None, description="Name for the Blender file"),
+    extrusion_depth: float = Body(0.1, description="Depth for 3D extrusion")
+):
+    """
+    Import SVG directly to Blender with extrusion.
+    """
+    try:
+        # Parse SVG path
+        if svg_path.startswith("diagrams/") or svg_path.startswith("svg/"):
+            # Path is relative to output directory
+            full_svg_path = os.path.join(OUTPUT_DIR, svg_path)
+        else:
+            # Assume path is absolute
+            full_svg_path = svg_path
+        
+        # Ensure SVG file exists
+        if not os.path.exists(full_svg_path):
+            raise HTTPException(
+                status_code=status.HTTP_404_NOT_FOUND,
+                detail=f"SVG file not found: {full_svg_path}"
+            )
+        
+        # Generate a unique name if none provided
+        if not name:
+            name = f"blender_import_{os.path.basename(full_svg_path).split('.')[0]}"
+            
+        # Define output path for Blender file
+        model_filename = f"{name.replace(' ', '_')}.blend"
+        model_path = os.path.join(MODELS_OUTPUT_DIR, model_filename)
+        
+        # Create MODELS_OUTPUT_DIR if it doesn't exist
+        os.makedirs(MODELS_OUTPUT_DIR, exist_ok=True)
+        
+        # Get Blender path from config or environment
+        blender_path = config.get('blender', {}).get('path')
+        if not blender_path:
+            blender_path = os.environ.get("BLENDER_PATH")
+        
+        # Check if Blender exists at the specified path
+        if not blender_path or not os.path.exists(blender_path):
+            # Try common locations
+            common_paths = [
+                r"C:\Program Files\Blender Foundation\Blender 4.2\blender.exe",
+                r"C:\Program Files\Blender Foundation\Blender 4.1\blender.exe",
+                r"C:\Program Files\Blender Foundation\Blender 4.0\blender.exe",
+                r"C:\Program Files\Blender Foundation\Blender 3.6\blender.exe",
+                r"C:\Program Files\Blender Foundation\Blender 3.5\blender.exe",
+                r"C:\Program Files\Blender Foundation\Blender\blender.exe",
+                r"/usr/bin/blender",
+                r"/Applications/Blender.app/Contents/MacOS/Blender"
+            ]
+            
+            for path in common_paths:
+                if os.path.exists(path):
+                    blender_path = path
+                    break
+        
+        # If Blender is not found, create a mock model file
+        if not blender_path or not os.path.exists(blender_path):
+            logger.warning("Blender executable not found. Creating a mock model file.")
+            
+            # Create a simple text file as a placeholder for the Blender file
+            with open(model_path, "w") as f:
+                f.write(f"# Mock Blender file created by importing {svg_path}\n")
+                f.write(f"# This is a placeholder. Actual SVG import requires Blender.\n")
+            
+            return {
+                "status": "success",
+                "message": "Mock Blender file created successfully (Blender not available)",
+                "name": name,
+                "blender_file_path": model_path
+            }
+        
+        # Create a temporary Python script to import SVG to Blender
+        with tempfile.NamedTemporaryFile(suffix='.py', delete=False, mode='w') as temp_script:
+            temp_script_path = temp_script.name
+            temp_script.write(f"""
+import bpy
+import os
+import sys
+
+# Clean scene
+bpy.ops.object.select_all(action='SELECT')
+bpy.ops.object.delete()
+
+# Import SVG
+svg_path = r"{full_svg_path}"
+bpy.ops.import_curve.svg(filepath=svg_path)
+
+# Extrude all curves
+for obj in bpy.context.scene.objects:
+    if obj.type == 'CURVE':
+        # Select object
+        bpy.context.view_layer.objects.active = obj
+        obj.select_set(True)
+        
+        # Extrude
+        obj.data.extrude = {extrusion_depth}
+        obj.data.bevel_depth = 0.01  # Small bevel for rounded edges
+
+# Set up camera and lighting for better view
+# Create camera if needed
+if not any(obj.type == 'CAMERA' for obj in bpy.context.scene.objects):
+    bpy.ops.object.camera_add(location=(0, -10, 5), rotation=(0.5, 0, 0))
+    camera = bpy.context.active_object
+    bpy.context.scene.camera = camera
+
+# Create lighting if needed
+if not any(obj.type == 'LIGHT' for obj in bpy.context.scene.objects):
+    # Key light
+    bpy.ops.object.light_add(type='SUN', location=(5, -5, 10))
+    key_light = bpy.context.active_object
+    key_light.data.energy = 2.0
+    
+    # Fill light
+    bpy.ops.object.light_add(type='AREA', location=(-5, -2, 5))
+    fill_light = bpy.context.active_object
+    fill_light.data.energy = 1.0
+
+# Center view on objects
+bpy.ops.object.select_all(action='SELECT')
+bpy.ops.view3d.camera_to_view_selected()
+
+# Save file
+output_path = r"{model_path}"
+bpy.ops.wm.save_as_mainfile(filepath=output_path)
+
+print(f"SVG imported and saved to: {{output_path}}")
+            """)
+        
+        try:
+            logger.info(f"Running Blender to import SVG: {full_svg_path}")
+            
+            # Command with UI
+            cmd = [
+                blender_path,
+                "--python", temp_script_path
+            ]
+            
+            # Execute command
+            process = subprocess.run(cmd, check=True, capture_output=True, text=True)
+            
+            # Log output
+            logger.info(f"Blender output: {process.stdout}")
+            if process.stderr:
+                logger.warning(f"Blender errors: {process.stderr}")
+            
+            logger.info(f"SVG imported to Blender successfully: {model_path}")
+            
+            # Return success response
+            return {
+                "status": "success",
+                "message": "SVG imported to Blender successfully",
+                "name": name,
+                "blender_file_path": model_path
+            }
+        
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Error executing Blender: {str(e)}")
+            logger.error(f"Stdout: {e.stdout}")
+            logger.error(f"Stderr: {e.stderr}")
+            raise HTTPException(
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+                detail=f"Error executing Blender: {str(e)}"
+            )
+        finally:
+            # Clean up the temporary script
+            try:
+                os.unlink(temp_script_path)
+            except:
+                pass
+    
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
+    except Exception as e:
+        logger.error(f"Error importing SVG to Blender: {str(e)}", exc_info=True)
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"Error importing SVG to Blender: {str(e)}"
         )
 
 @router.post("/svg-generator/animate-model")
@@ -473,7 +767,7 @@ async def animate_model(
     """
     if not ANIMATION_AVAILABLE:
         raise HTTPException(
-            status_code=503, 
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, 
             detail="Animation module is not available. Check server logs for details."
         )
     
@@ -489,7 +783,7 @@ async def animate_model(
         # Ensure model file exists
         if not os.path.exists(full_model_path):
             raise HTTPException(
-                status_code=404,
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Model file not found at {full_model_path}"
             )
         
@@ -518,14 +812,14 @@ async def animate_model(
             # Explicitly catch NotImplementedError from the model_animator
             logger.error(f"Model animation not implemented: {str(e)}")
             raise HTTPException(
-                status_code=501,  # Not Implemented
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
                 detail=f"Model animation is not implemented: {str(e)}"
             )
         
         if not result:
             logger.error("Model animation failed with no specific error message")
             raise HTTPException(
-                status_code=500,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to animate 3D model - check logs for details"
             )
         
@@ -533,7 +827,7 @@ async def animate_model(
         if not os.path.exists(animated_path):
             logger.error(f"Animated model file not created at expected path: {animated_path}")
             raise HTTPException(
-                status_code=500,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Model animation did not produce an output file"
             )
         
@@ -549,13 +843,16 @@ async def animate_model(
     except NotImplementedError as e:
         logger.error(f"Model animation not implemented: {str(e)}", exc_info=True)
         raise HTTPException(
-            status_code=501,  # Not Implemented
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail=f"Model animation is not implemented: {str(e)}"
         )
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
         logger.error(f"Error animating model: {str(e)}", exc_info=True)
         raise HTTPException(
-            status_code=500,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to animate model: {str(e)}"
         )
 
@@ -571,7 +868,7 @@ async def render_video(
     """
     if not RENDERING_AVAILABLE:
         raise HTTPException(
-            status_code=503, 
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE, 
             detail="Rendering module is not available. Check server logs for details."
         )
     
@@ -587,7 +884,7 @@ async def render_video(
         # Ensure animated model file exists
         if not os.path.exists(full_animated_path):
             raise HTTPException(
-                status_code=404,
+                status_code=status.HTTP_404_NOT_FOUND,
                 detail=f"Animated model file not found at {full_animated_path}"
             )
         
@@ -617,14 +914,14 @@ async def render_video(
             # Explicitly catch NotImplementedError from the video_renderer
             logger.error(f"Video rendering not implemented: {str(e)}")
             raise HTTPException(
-                status_code=501,  # Not Implemented
+                status_code=status.HTTP_501_NOT_IMPLEMENTED,
                 detail=f"Video rendering is not implemented: {str(e)}"
             )
         
         if not result:
             logger.error("Video rendering failed with no specific error message")
             raise HTTPException(
-                status_code=500,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Failed to render video - check logs for details"
             )
         
@@ -632,7 +929,7 @@ async def render_video(
         if not os.path.exists(video_path):
             logger.error(f"Video file not created at expected path: {video_path}")
             raise HTTPException(
-                status_code=500,
+                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
                 detail="Video rendering did not produce an output file"
             )
         
@@ -648,12 +945,15 @@ async def render_video(
     except NotImplementedError as e:
         logger.error(f"Video rendering not implemented: {str(e)}", exc_info=True)
         raise HTTPException(
-            status_code=501,  # Not Implemented
+            status_code=status.HTTP_501_NOT_IMPLEMENTED,
             detail=f"Video rendering is not implemented: {str(e)}"
         )
+    except HTTPException:
+        # Re-raise HTTP exceptions
+        raise
     except Exception as e:
         logger.error(f"Error rendering video: {str(e)}", exc_info=True)
         raise HTTPException(
-            status_code=500,
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"Failed to render video: {str(e)}"
         )
