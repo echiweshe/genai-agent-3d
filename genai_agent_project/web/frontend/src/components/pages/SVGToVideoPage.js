@@ -86,7 +86,7 @@ const SVGToVideoPage = ({ addNotification }) => {
   // New state variables for SVG conversion options
   const [showConversionOptions, setShowConversionOptions] = useState(false);
   const [showInBlender, setShowInBlender] = useState(false);
-  const [extrusionDepth, setExtrusionDepth] = useState(0.1);
+  const [extrusionDepth, setExtrusionDepth] = useState(0.0005); // Updated to 0.0005 from 0.1
   const [importingToBlender, setImportingToBlender] = useState(false);
   
   const diagramTypes = [
@@ -846,11 +846,11 @@ const SVGToVideoPage = ({ addNotification }) => {
                         <Slider
                           value={extrusionDepth}
                           onChange={(e, newValue) => setExtrusionDepth(newValue)}
-                          step={0.01}
-                          min={0.01}
-                          max={1}
+                          step={0.0001}
+                          min={0.0001}
+                          max={0.05}
                           valueLabelDisplay="auto"
-                          valueLabelFormat={(value) => `${value.toFixed(2)}`}
+                          valueLabelFormat={(value) => `${value.toFixed(4)}`}
                         />
                       </Grid>
                       <Grid item>
@@ -858,16 +858,16 @@ const SVGToVideoPage = ({ addNotification }) => {
                           value={extrusionDepth}
                           onChange={(e) => {
                             const value = parseFloat(e.target.value);
-                            if (!isNaN(value) && value >= 0.01 && value <= 1) {
+                            if (!isNaN(value) && value >= 0.0001 && value <= 0.05) {
                               setExtrusionDepth(value);
                             }
                           }}
                           type="number"
                           InputProps={{
                             inputProps: { 
-                              min: 0.01, 
-                              max: 1,
-                              step: 0.01
+                              min: 0.0001, 
+                              max: 0.05,
+                              step: 0.0001
                             }
                           }}
                           size="small"
